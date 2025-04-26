@@ -100,7 +100,7 @@ def analyze_message():
         
         # Generate a response
         result = {
-            "id": player_id,
+            "player_id": player_id,
             "player_name": player_name,
             "message_id": message_id,
             "message": user_message,
@@ -113,7 +113,7 @@ def analyze_message():
     except Exception as e:
         print(f"Error in sentiment analysis: {e}")
         fallback_result = {
-            "id": player_id,
+            "player_id": player_id,
             "player_name": player_name,
             "message_id": message_id,
             "message": user_message,
