@@ -5,21 +5,32 @@ import google.generativeai as genai
 import random
 import json
 import re
+from supabase import create_client, Client
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
+# API Keys
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
+ROBLOX_API_KEY = os.environ.get("ROBLOX_API_KEY")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+# Initialize APIs
 genai.configure(api_key=GOOGLE_API_KEY)
 
-ROBLOX_API_KEY = os.environ.get("ROBLOX_API_KEY")
+# Initialize Gemini model
+model = genai.GenerativeModel('gemini-1.5-flash')
+
+# Initialize Supabase client
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 print("Server starting up with configuration...")
 print(f"Google API Key configured: {'Yes' if GOOGLE_API_KEY else 'No'}")
 print(f"Roblox API Key configured: {'Yes' if ROBLOX_API_KEY else 'No'}")
-
-print("Initializing Gemini model...")
-model = genai.GenerativeModel('gemini-1.5-flash')
+print(f"Supabase configured: {'Yes' if SUPABASE_URL and SUPABASE_KEY else 'No'}")
+print("Gemini model initialized")
 
 @app.route('/')
 def home():
@@ -83,7 +94,6 @@ def analyze_message():
         print(f"Received response from Gemini: {response_text}")
 
         try:
-            print("Parsing Gemini response as JSON...")
             json_match = re.search(r'({[\s\S]*})', response_text)
             if json_match:
                 json_str = json_match.group(1)
@@ -108,6 +118,33 @@ def analyze_message():
             "sentiment_score": sentiment_score
         }
         
+        # store the data in supabase
+        try:
+            # check if the player exists in the players table
+            player_data = {
+                "player_id": player_id,
+                "player_name": player_name,
+                "last_seen": datetime.now().isoformat()
+            }
+            
+            player_response = supabase.table('players').upsert(player_data).execute()
+            print(f"Player data stored/updated in Supabase")
+            
+            # store the message data
+            message_data = {
+                "message_id": message_id,
+                "player_id": player_id,
+                "message": user_message,
+                "sentiment_score": sentiment_score,
+                "created_at": datetime.now().isoformat()
+            }
+            
+            message_response = supabase.table('messages').insert(message_data).execute()
+            print(f"Message data stored in Supabase")
+        
+        except Exception as db_error:
+            print(f"Supabase storage error: {db_error}")
+        
         print(f"Returning result: {result}")
         return jsonify(result)
     
@@ -123,6 +160,51 @@ def analyze_message():
         
         print(f"Returning fallback result: {fallback_result}")
         return jsonify(fallback_result)
+
+@app.route('/api/players', methods=['GET'])
+def get_players():
+    try:
+        response = supabase.table('players').select('*').execute()
+        return jsonify(response.data)
+    except Exception as e:
+        print(f"Error fetching players: {e}")
+        return jsonify({"error": "Failed to fetch players"}), 500
+
+@app.route('/api/messages', methods=['GET'])
+def get_messages():
+    try:
+        # get optional query params for filtering
+        player_id = request.args.get('player_id')
+        limit = request.args.get('limit', 100)
+        
+        query = supabase.table('messages').select('*').order('created_at', desc=True).limit(limit)
+        
+        if player_id:
+            query = query.eq('player_id', player_id)
+        
+        response = query.execute()
+        return jsonify(response.data)
+    except Exception as e:
+        print(f"Error fetching messages: {e}")
+        return jsonify({"error": "Failed to fetch messages"}), 500
+
+@app.route('/api/live', methods=['GET'])
+def get_live_messages():
+    try:
+        # get the latest messages for live display
+        limit = request.args.get('limit', 20)
+        
+        response = supabase.table('messages')\
+            .select('messages.*, players.player_name')\
+            .join('players', 'messages.player_id', 'players.player_id')\
+            .order('created_at', desc=True)\
+            .limit(limit)\
+            .execute()
+            
+        return jsonify(response.data)
+    except Exception as e:
+        print(f"Error fetching live messages: {e}")
+        return jsonify({"error": "Failed to fetch live messages"}), 500
 
 if __name__ == '__main__':
     print("Starting Flask development server...")
