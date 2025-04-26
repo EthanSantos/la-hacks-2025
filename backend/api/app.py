@@ -191,20 +191,15 @@ def get_messages():
 @app.route('/api/live', methods=['GET'])
 def get_live_messages():
     try:
-        # get the latest messages for live display
-        limit = request.args.get('limit', 20)
+        limit = int(request.args.get('limit', 20))
         
-        response = supabase.table('messages')\
-            .select('messages.*, players.player_name')\
-            .join('players', 'messages.player_id', 'players.player_id')\
-            .order('created_at', desc=True)\
-            .limit(limit)\
-            .execute()
-            
-        return jsonify(response.data)
+        # created a sql function to handle this easily and more efficiently
+        messages_response = supabase.rpc('get_live_messages', {'p_limit': limit}).execute()
+        
+        return jsonify(messages_response.data)
     except Exception as e:
         print(f"Error fetching live messages: {e}")
-        return jsonify({"error": "Failed to fetch live messages"}), 500
+        return jsonify({"error": f"Failed to fetch live messages: {str(e)}"}), 500
 
 if __name__ == '__main__':
     print("Starting Flask development server...")
