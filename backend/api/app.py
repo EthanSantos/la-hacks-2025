@@ -18,6 +18,9 @@ print("Server starting up with configuration...")
 print(f"Google API Key configured: {'Yes' if GOOGLE_API_KEY else 'No'}")
 print(f"Roblox API Key configured: {'Yes' if ROBLOX_API_KEY else 'No'}")
 
+print("Initializing Gemini model...")
+model = genai.GenerativeModel('gemini-1.5-flash')
+
 @app.route('/')
 def home():
     print("Home endpoint accessed")
@@ -59,8 +62,6 @@ def analyze_message():
     print(f"Message to analyze: {user_message}")
     
     try:
-        print("Initializing Gemini model...")
-        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""
         Analyze the following message for its sentiment.
