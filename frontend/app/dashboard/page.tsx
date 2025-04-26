@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,22 +14,23 @@ export default function Dashboard() {
     fetchMessages
   } = useLiveMessages(); // use the custom hook
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchMessages();
-
-    // polling for real-time updates
-    const interval = setInterval(fetchMessages, 10000); // Update every 10 seconds
-
-    return () => clearInterval(interval);
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom on initial load and when messages change
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
-    }
-  }, [messages]);
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  // Initial fetch and polling
+  useEffect(() => {
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getSentimentColor = (score: number) => {
     if (score >= 75) return 'bg-green-500';
@@ -63,27 +64,30 @@ export default function Dashboard() {
             ) : messages.length === 0 ? (
               <div className="text-center text-gray-500">No messages found</div>
             ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.message_id}
-                  className="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{msg.player_name}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(msg.created_at).toLocaleString()}
-                      </span>
+              <>
+                {messages.map((msg) => (
+                  <div
+                    key={msg.message_id}
+                    className="flex flex-col gap-2 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{msg.player_name}</span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(msg.created_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <div
+                        className={`${getSentimentColor(msg.sentiment_score)} text-white text-xs font-bold px-2 py-1 rounded`}
+                      >
+                        {msg.sentiment_score}
+                      </div>
                     </div>
-                    <div
-                      className={`${getSentimentColor(msg.sentiment_score)} text-white text-xs font-bold px-2 py-1 rounded`}
-                    >
-                      {msg.sentiment_score}
-                    </div>
+                    <p className="text-sm break-words">{msg.message}</p>
                   </div>
-                  <p className="text-sm break-words">{msg.message}</p>
-                </div>
-              ))
+                ))}
+                <div ref={messagesEndRef} />
+              </>
             )}
           </CardContent>
         </ScrollArea>
