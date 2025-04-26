@@ -41,8 +41,14 @@ def analyze_message():
         return jsonify({"error": "No message provided"}), 400
     
     user_message = request.json['message']
-    player_id = request.json.get('player_id', random.randint(1, 100))
-    player_name = request.json.get('player_name', f"Player{random.randint(1, 999)}")
+    player_id = request.json.get('player_id')
+    player_name = request.json.get('player_name')
+    
+    # default values if player_id or player_name is not provided
+    if player_id is None:
+        player_id = random.randint(1, 100)
+    if player_name is None:
+        player_name = f"Player{random.randint(1, 999)}"
     
     print(f"Processing request: Player ID: {player_id}, Player Name: {player_name}")
     print(f"Message to analyze: {user_message}")
@@ -52,22 +58,14 @@ def analyze_message():
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""
-        Analyze the following message for its sentiment and emotion.
+        Analyze the following message for its sentiment.
         Give a sentiment score from -100 (extremely negative) to 100 (extremely positive).
-        
-        For emotions, classify as one of:
-        - Very Positive
-        - Positive
-        - Neutral
-        - Negative
-        - Very Negative
         
         Message: {user_message}
         
         Format your response in valid JSON like this example:
         {{
-          "sentiment_score": 75,
-          "emotion": "Positive"
+          "sentiment_score": 75
         }}
         
         Respond ONLY with the JSON, nothing else.
@@ -89,12 +87,10 @@ def analyze_message():
                 gemini_data = json.loads(response_text)
                 
             sentiment_score = gemini_data.get("sentiment_score", 0)
-            emotion = gemini_data.get("emotion", "Neutral")
-            print(f"Parsed sentiment score: {sentiment_score}, emotion: {emotion}")
+            print(f"Parsed sentiment score: {sentiment_score}")
         except Exception as json_error:
             print(f"JSON parsing error: {json_error}")
             sentiment_score = 0
-            emotion = "Neutral"
             print("Using fallback sentiment values due to parsing error")
         
         # Generate a response
@@ -102,8 +98,7 @@ def analyze_message():
             "id": player_id,
             "player_name": player_name,
             "message": user_message,
-            "sentiment_score": sentiment_score,
-            "emotion": emotion
+            "sentiment_score": sentiment_score
         }
         
         print(f"Returning result: {result}")
@@ -115,8 +110,7 @@ def analyze_message():
             "id": player_id,
             "player_name": player_name,
             "message": user_message,
-            "sentiment_score": 0,
-            "emotion": "Neutral"
+            "sentiment_score": 0
         }
         
         print(f"Returning fallback result: {fallback_result}")
