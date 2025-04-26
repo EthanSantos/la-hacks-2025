@@ -216,8 +216,6 @@ def get_roblox_avatar():
         print("Roblox avatar proxy: Missing userId parameter")
         return jsonify({"error": "Missing userId parameter"}), 400
 
-    # Validate userId format (optional but recommended)
-    # Assuming userId should be a positive integer string
     try:
         user_id_int = int(user_id)
         if user_id_int <= 0:
