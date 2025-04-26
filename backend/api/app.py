@@ -39,12 +39,17 @@ def analyze_message():
     if not request.json or 'message' not in request.json:
         print("Bad request - no message provided")
         return jsonify({"error": "No message provided"}), 400
+        
+    if 'message_id' not in request.json:
+        print("Bad request - no message_id provided")
+        return jsonify({"error": "No message_id provided"}), 400
     
     user_message = request.json['message']
+    message_id = request.json['message_id']
     player_id = request.json.get('player_id')
     player_name = request.json.get('player_name')
     
-    # default values if player_id or player_name is not provided
+    # Only use random values if no player_id or player_name was provided
     if player_id is None:
         player_id = random.randint(1, 100)
     if player_name is None:
@@ -97,6 +102,7 @@ def analyze_message():
         result = {
             "id": player_id,
             "player_name": player_name,
+            "message_id": message_id,
             "message": user_message,
             "sentiment_score": sentiment_score
         }
@@ -109,6 +115,7 @@ def analyze_message():
         fallback_result = {
             "id": player_id,
             "player_name": player_name,
+            "message_id": message_id,
             "message": user_message,
             "sentiment_score": 0
         }
