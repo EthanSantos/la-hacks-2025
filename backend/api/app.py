@@ -7,6 +7,7 @@ import json
 import re
 from supabase import create_client, Client
 from datetime import datetime
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -25,6 +26,8 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+ROBLOX_THUMBNAILS_API_URL = "https://thumbnails.roblox.com/v1/users/avatar-headshot"
 
 print("Server starting up with configuration...")
 print(f"Google API Key configured: {'Yes' if GOOGLE_API_KEY else 'No'}")
@@ -200,6 +203,78 @@ def get_live_messages():
     except Exception as e:
         print(f"Error fetching live messages: {e}")
         return jsonify({"error": f"Failed to fetch live messages: {str(e)}"}), 500
+    
+@app.route('/api/roblox-avatar', methods=['GET'])
+def get_roblox_avatar():
+    """
+    Proxies requests to the Roblox Thumbnails API to fetch user avatar headshots.
+    Takes 'userId' as a query parameter.
+    """
+    user_id = request.args.get('userId')
+
+    if not user_id:
+        print("Roblox avatar proxy: Missing userId parameter")
+        return jsonify({"error": "Missing userId parameter"}), 400
+
+    # Validate userId format (optional but recommended)
+    # Assuming userId should be a positive integer string
+    try:
+        user_id_int = int(user_id)
+        if user_id_int <= 0:
+             print(f"Roblox avatar proxy: Invalid userId format (non-positive): {user_id}")
+             return jsonify({"error": "Invalid userId format"}), 400
+    except ValueError:
+        print(f"Roblox avatar proxy: Invalid userId format (not an integer): {user_id}")
+        return jsonify({"error": "Invalid userId format"}), 400
+
+
+    print(f"Roblox avatar proxy: Fetching avatar for user ID: {user_id}")
+
+    # Parameters for the Roblox API request
+    roblox_params = {
+        "userIds": user_id, # Pass the single user ID
+        "size": "150x150",  # Desired size
+        "format": "Png"     # Desired format
+    }
+
+    try:
+        # Make the request to the actual Roblox Thumbnails API
+        roblox_response = requests.get(ROBLOX_THUMBNAILS_API_URL, params=roblox_params)
+        roblox_response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+
+        roblox_data = roblox_response.json()
+        print(f"Roblox avatar proxy: Received data from Roblox API: {roblox_data}")
+
+        # Parse the response to find the image URL
+        # The response structure is { "data": [ { "targetId": ..., "state": ..., "imageUrl": ... } ] }
+        image_url = None
+        if roblox_data and 'data' in roblox_data and isinstance(roblox_data['data'], list):
+            # Find the item matching the requested user ID
+            user_data = next((item for item in roblox_data['data'] if str(item.get('targetId')) == user_id), None)
+            if user_data and 'imageUrl' in user_data:
+                image_url = user_data['imageUrl']
+                print(f"Roblox avatar proxy: Found imageUrl: {image_url}")
+            else:
+                 print(f"Roblox avatar proxy: imageUrl not found in Roblox response for user ID: {user_id}")
+
+
+        if image_url:
+            # Return the image URL to the frontend
+            return jsonify({"imageUrl": image_url})
+        else:
+            # Return a 404 if the image URL was not found for the user
+            print(f"Roblox avatar proxy: Avatar not found for user ID: {user_id}")
+            return jsonify({"error": "Avatar not found"}), 404
+
+    except requests.exceptions.RequestException as e:
+        # Handle errors during the request to Roblox API
+        print(f"Roblox avatar proxy: Error fetching from Roblox API: {e}")
+        return jsonify({"error": "Failed to fetch avatar from Roblox"}), 500
+    except Exception as e:
+        # Handle any other unexpected errors
+        print(f"Roblox avatar proxy: An unexpected error occurred: {e}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
 
 if __name__ == '__main__':
     print("Starting Flask development server...")
