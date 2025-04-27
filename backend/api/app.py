@@ -301,6 +301,70 @@ def get_top_players():
     except Exception as e:
         print(f"Error fetching top players: {e}")
         return jsonify({"error": f"Failed to fetch top players: {str(e)}"}), 500
+    
+@app.route('/api/analytics/all-time/sentiment-trend', methods=['GET'])
+def get_sentiment_trend_data_all_time():
+    try:
+        interval = request.args.get('interval', 'month') 
+        if interval not in ['day', 'hour', 'week', 'month', 'year']:
+            return jsonify({"error": "Invalid interval unit"}), 400
+
+        params = {'interval_unit': interval}
+        # Call the all_time version of the function
+        response = supabase.rpc('get_sentiment_trend_all_time', params).execute()
+
+        if hasattr(response, 'data'):
+             print(f"Fetched all-time sentiment trend data for interval: {interval}")
+             return jsonify(response.data)
+        else:
+             print(f"Error in Supabase response for all-time sentiment trend: {response}")
+             return jsonify({"error": "Failed to fetch all-time sentiment trend data", "details": str(response)}), 500
+
+    except Exception as e:
+        print(f"Error fetching all-time sentiment trend: {e}")
+        return jsonify({"error": f"Failed to fetch all-time sentiment trend: {str(e)}"}), 500
+
+@app.route('/api/analytics/all-time/sentiment-distribution', methods=['GET'])
+def get_sentiment_distribution_data_all_time():
+    try:
+        positive_threshold = request.args.get('positive_threshold', 30, type=int)
+        negative_threshold = request.args.get('negative_threshold', -30, type=int)
+
+        params = {
+            'positive_threshold': positive_threshold,
+            'negative_threshold': negative_threshold
+        }
+        # Call the all_time version of the function
+        response = supabase.rpc('get_sentiment_distribution_all_time', params).execute()
+
+        if hasattr(response, 'data'):
+            print(f"Fetched all-time sentiment distribution data")
+            return jsonify(response.data)
+        else:
+            print(f"Error in Supabase response for all-time sentiment distribution: {response}")
+            return jsonify({"error": "Failed to fetch all-time sentiment distribution data", "details": str(response)}), 500
+
+    except Exception as e:
+        print(f"Error fetching all-time sentiment distribution: {e}")
+        return jsonify({"error": f"Failed to fetch all-time sentiment distribution: {str(e)}"}), 500
+
+@app.route('/api/analytics/all-time/overall-stats', methods=['GET'])
+def get_overall_stats_data_all_time():
+    try:
+        # Call the all_time version of the function (no parameters needed)
+        response = supabase.rpc('get_overall_analytics_stats_all_time', {}).execute()
+
+        if hasattr(response, 'data'):
+            print(f"Fetched all-time overall stats")
+            data_to_return = response.data[0] if response.data and isinstance(response.data, list) else response.data
+            return jsonify(data_to_return)
+        else:
+            print(f"Error in Supabase response for all-time overall stats: {response}")
+            return jsonify({"error": "Failed to fetch all-time overall stats", "details": str(response)}), 500
+
+    except Exception as e:
+        print(f"Error fetching all-time overall stats: {e}")
+        return jsonify({"error": f"Failed to fetch all-time overall stats: {str(e)}"}), 500
 
 if __name__ == '__main__':
     print("Starting Flask development server...")
