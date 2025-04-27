@@ -1,15 +1,17 @@
-# app.py - Modified version with numeric IDs for Supabase compatibility
+# app.py
+# FastAPI application for GrowTogether AI moderation
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from typing import Optional, List, Dict, Any
 import os
-import random 
+import random
 import uuid
 from datetime import datetime
-import asyncio
 from supabase import create_client, Client
 from dotenv import load_dotenv
+import requests
 
 from models import (
     AnalyzeRequest, AnalyzeResult, SentimentScore, ContentCategory
@@ -18,18 +20,19 @@ from agents import (
     perform_analysis, moderation_workflow, logger
 )
 
-# load env variables
+# Load environment variables
 load_dotenv()
 
-# config
+# Configuration constants
 ROBLOX_API_KEY = os.getenv("ROBLOX_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+ROBLOX_THUMBNAILS_API_URL = "https://thumbnails.roblox.com/v1/users/avatar-headshot"
 
-# initialize app
+# Initialize FastAPI app
 app = FastAPI(title="GrowTogether AI Moderation API")
 
-# add CORS middleware
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,7 +41,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# initialize Supabase client
+# Initialize Supabase client
 supabase: Optional[Client] = None
 if SUPABASE_URL and SUPABASE_KEY:
     try:
@@ -47,37 +50,10 @@ if SUPABASE_URL and SUPABASE_KEY:
     except Exception as e:
         logger.error(f"Failed to initialize Supabase client: {str(e)}")
 
-# db repository
-class DatabaseRepository:
-    def __init__(self, client: Optional[Client]):
-        self.client = client
-    
-    def store_player(self, player_data: Dict[str, Any]) -> None:
-        if not self.client:
-            return
-        try:
-            self.client.table('players').upsert(player_data).execute()
-        except Exception as e:
-            logger.error(f"Error storing player data: {str(e)}")
-    
-    def store_message(self, message_data: Dict[str, Any]) -> None:
-        if not self.client:
-            return
-        try:
-            self.client.table('messages').insert(message_data).execute()
-        except Exception as e:
-            logger.error(f"Error storing message data: {str(e)}")
-    
-    def store_moderation_result(self, moderation_data: Dict[str, Any]) -> None:
-        if not self.client:
-            return
-        try:
-            self.client.table('moderation_results').insert(moderation_data).execute()
-        except Exception as e:
-            logger.error(f"Error storing moderation result: {str(e)}")
-
-# initialize db repository
-db_repository = DatabaseRepository(supabase)
+# Generate numeric IDs for Supabase compatibility
+def generate_numeric_id() -> int:
+    """Generate a numeric ID for database compatibility."""
+    return random.randint(10000000, 99999999)
 
 # API key verification dependency
 def verify_api_key(x_api_key: Optional[str] = Header(None)):
@@ -85,6 +61,7 @@ def verify_api_key(x_api_key: Optional[str] = Header(None)):
         raise HTTPException(status_code=401, detail="Unauthorized")
     return True
 
+# Helper functions
 def get_emotion(sentiment_score: int) -> str:
     """Determines emotion label based on sentiment score."""
     if sentiment_score > 70: return "Very Positive"
@@ -93,12 +70,7 @@ def get_emotion(sentiment_score: int) -> str:
     elif sentiment_score >= -70: return "Negative"
     else: return "Very Negative"
 
-# generate numeric int IDs
-def generate_numeric_id(prefix: str = "") -> int:
-    """Generate a numeric ID for database compatibility."""
-    return random.randint(10000000, 99999999)
-
-# endpoints
+# Endpoints
 @app.get("/")
 async def home():
     """Root endpoint to verify API is running."""
@@ -111,53 +83,64 @@ async def analyze_message(
 ):
     """Basic sentiment analysis endpoint."""
     try:
-        # get IDs from request
-        message_id_str = request.message_id or f"msg_{uuid.uuid4().hex[:8]}"
-        player_id_str = request.player_id or f"player_{uuid.uuid4().hex[:8]}"
+        # Generate numeric IDs for Supabase compatibility
+        message_id = request.message_id or generate_numeric_id()
+        player_id = request.player_id or generate_numeric_id()
         player_name = request.player_name or f"Player{uuid.uuid4().hex[:4]}"
         
-        # generate numeric IDs for database
-        try:
-            # try to convert string IDs to integers for database
-            player_id = int(player_id_str) if player_id_str.isdigit() else generate_numeric_id()
-            message_id = int(message_id_str) if message_id_str.isdigit() else generate_numeric_id()
-        except (ValueError, AttributeError):
-            # fallback to generating new IDs if conversion fails
-            player_id = generate_numeric_id()
-            message_id = generate_numeric_id()
-        
-        # analyze sentiment using transformer models
+        # Analyze sentiment using transformer models
         analysis_result = await perform_analysis(request.message)
         sentiment_score = analysis_result.sentiment.score
         emotion = get_emotion(sentiment_score)
         
-        # store data in Supabase (with numeric IDs)
-        try:
-            db_repository.store_player({
-                "player_id": player_id,  # numeric ID for database
-                "player_name": player_name,
-                "last_seen": datetime.now().isoformat()
-            })
+        # Store data in Supabase
+        if supabase:
+            try:
+                # Check if player exists in the players table using upsert
+                player_data = {
+                    "player_id": player_id,
+                    "player_name": player_name,
+                    "last_seen": datetime.now().isoformat()
+                }
+                
+                player_response = supabase.table('players').upsert(player_data).execute()
+                logger.info(f"Player data stored/updated in Supabase")
+                
+                # Store the message data
+                message_data = {
+                    "message_id": message_id,
+                    "player_id": player_id,
+                    "message": request.message,
+                    "sentiment_score": sentiment_score,
+                    "created_at": datetime.now().isoformat()
+                }
+                
+                message_response = supabase.table('messages').insert(message_data).execute()
+                logger.info(f"Message data stored in Supabase")
+                
+                # Update player sentiment score after message is stored
+                try:
+                    supabase.rpc('update_player_sentiment_score').execute()
+                    logger.info("Player sentiment score updated via RPC")
+                except Exception as score_error:
+                    logger.error(f"Error updating player sentiment score: {str(score_error)}")
             
-            db_repository.store_message({
-                "message_id": message_id,  # numeric ID for database
-                "player_id": player_id,    # numeric ID for database
-                "message": request.message,
-                "sentiment_score": sentiment_score,
-                "created_at": datetime.now().isoformat()
-            })
-        except Exception as e:
-            logger.warning(f"Database storage error: {str(e)}")
+            except Exception as db_error:
+                logger.error(f"Supabase storage error: {str(db_error)}")
         
-        # return string IDs 
-        return {
-            "player_id": str(player_id),
+        # Prepare result
+        result = {
+            "player_id": player_id,
             "player_name": player_name,
-            "message_id": str(message_id),
+            "message_id": message_id,
             "message": request.message,
             "sentiment_score": sentiment_score,
             "emotion": emotion
         }
+        
+        logger.info(f"Returning analysis result: {result}")
+        return result
+        
     except Exception as e:
         logger.error(f"Error in analyze_message: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
@@ -169,70 +152,88 @@ async def analyze_result(
 ):
     """Full analysis endpoint using agent workflow."""
     try:
-        # generate numeric IDs for Supabase compatibility
+        # Generate numeric IDs for Supabase compatibility
         message_id = request.message_id or generate_numeric_id()
         player_id = request.player_id or generate_numeric_id()
         player_name = request.player_name or f"Player{uuid.uuid4().hex[:4]}"
         
         logger.info(f"Processing request for player {player_name} with message ID {message_id}")
         
-        # create message context for agent workflow
+        # Create message context for agent workflow
         from models import Message, MessageContext
         message_context = MessageContext(id=str(player_id), username=player_name, message_id=str(message_id))
         message = Message(content=request.message, context=message_context)
         
-        # run agent workflow
+        # Run agent workflow
         initial_state = {"message": message}
         workflow_result = await moderation_workflow.ainvoke(initial_state)
         
-        # extract results
+        # Extract results
         analysis_result = workflow_result.get("analysis_result")
         moderation_result = workflow_result.get("moderation_result")
         mediation_result = workflow_result.get("mediation_result")
         final_action = workflow_result.get("final_action")
         
-        # handle missing critical components
+        # Handle missing critical components
         if not analysis_result or not moderation_result or not final_action:
             logger.error(f"Critical workflow components missing: analysis={bool(analysis_result)}, moderation={bool(moderation_result)}, final_action={bool(final_action)}")
             raise HTTPException(status_code=500, detail="Workflow processing failed")
         
-        # get sentiment score and emotion
+        # Get sentiment score and emotion
         sentiment_score = analysis_result.sentiment.score
         emotion = get_emotion(sentiment_score)
         
-        # store result in database
-        try:
-            timestamp = datetime.now().isoformat()
-            
-            # store player data
-            db_repository.store_player({
-                "player_id": player_id,
-                "player_name": player_name,
-                "last_seen": timestamp
-            })
-            
-            # store message data
-            db_repository.store_message({
-                "message_id": message_id,
-                "player_id": player_id,
-                "message": request.message,
-                "sentiment_score": sentiment_score,
-                "created_at": timestamp
-            })
-            
-            # store moderation result
-            db_repository.store_moderation_result({
-                "message_id": message_id,
-                "player_id": player_id,
-                "moderation_decision": moderation_result.decision,
-                "moderation_reason": moderation_result.reason,
-                "actions": final_action.actions,
-                "created_at": timestamp
-            })
-        except Exception as e:
-            logger.warning(f"Database storage error: {str(e)}")
+        # Store result in database
+        if supabase:
+            try:
+                timestamp = datetime.now().isoformat()
+                
+                # Check if player exists in the players table using upsert
+                player_data = {
+                    "player_id": player_id,
+                    "player_name": player_name,
+                    "last_seen": timestamp
+                }
+                
+                player_response = supabase.table('players').upsert(player_data).execute()
+                logger.info(f"Player data stored/updated in Supabase")
+                
+                # Store the message data
+                message_data = {
+                    "message_id": message_id,
+                    "player_id": player_id,
+                    "message": request.message,
+                    "sentiment_score": sentiment_score,
+                    "created_at": timestamp
+                }
+                
+                message_response = supabase.table('messages').insert(message_data).execute()
+                logger.info(f"Message data stored in Supabase")
+                
+                # Update player sentiment score after message is stored
+                try:
+                    supabase.rpc('update_player_sentiment_score').execute()
+                    logger.info("Player sentiment score updated via RPC")
+                except Exception as score_error:
+                    logger.error(f"Error updating player sentiment score: {str(score_error)}")
+                
+                # Store moderation result
+                moderation_data = {
+                    "message_id": message_id,
+                    "player_id": player_id,
+                    "moderation_decision": moderation_result.decision,
+                    "moderation_reason": moderation_result.reason,
+                    "actions": final_action.actions,
+                    "created_at": timestamp
+                }
+                
+                supabase.table('moderation_results').insert(moderation_data).execute()
+                logger.info(f"Moderation data stored in Supabase")
+                
+            except Exception as db_error:
+                logger.error(f"Supabase storage error: {str(db_error)}")
         
-        # format resolution strategies
+        # Format resolution strategies
         strategies = []
         if mediation_result and mediation_result.strategies:
             strategies = [
@@ -244,11 +245,11 @@ async def analyze_result(
                 for strategy in mediation_result.strategies
             ]
         
-        # prepare and return result
+        # Prepare and return result
         return AnalyzeResult(
-            player_id=str(player_id), 
+            player_id=str(player_id),
             player_name=player_name,
-            message_id=str(message_id),  
+            message_id=str(message_id),
             message=request.message,
             sentiment_score=sentiment_score,
             emotion=emotion,
@@ -263,6 +264,137 @@ async def analyze_result(
     except Exception as e:
         logger.error(f"Error in analyze_result: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+@app.get("/api/players")
+async def get_players(authorized: bool = Depends(verify_api_key)):
+    """Get all players from the database."""
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        response = supabase.table('players').select('*').execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching players: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch players: {str(e)}")
+
+@app.get("/api/messages")
+async def get_messages(
+    player_id: Optional[str] = None,
+    limit: int = 100,
+    authorized: bool = Depends(verify_api_key)
+):
+    """Get messages with optional filtering by player_id."""
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        query = supabase.table('messages').select('*').order('created_at', desc=True).limit(limit)
+        
+        if player_id:
+            # Convert string player_id to integer if it's a number
+            try:
+                if player_id.isdigit():
+                    player_id_int = int(player_id)
+                    query = query.eq('player_id', player_id_int)
+                else:
+                    query = query.eq('player_id', player_id)
+            except (ValueError, AttributeError):
+                query = query.eq('player_id', player_id)
+        
+        response = query.execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching messages: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch messages: {str(e)}")
+
+@app.get("/api/live")
+async def get_live_messages(
+    limit: int = 20,
+    authorized: bool = Depends(verify_api_key)
+):
+    """Get live messages using the get_live_messages RPC function."""
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        response = supabase.rpc('get_live_messages', {'p_limit': limit}).execute()
+        return response.data
+    except Exception as e:
+        logger.error(f"Error fetching live messages: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch live messages: {str(e)}")
+
+@app.get("/api/roblox-avatar")
+async def get_roblox_avatar(
+    userId: str,
+    authorized: bool = Depends(verify_api_key)
+):
+    """Get Roblox avatar headshot for a user."""
+    if not userId:
+        raise HTTPException(status_code=400, detail="Missing userId parameter")
+    
+    try:
+        user_id_int = int(userId)
+        if user_id_int <= 0:
+            raise ValueError("Invalid userId format")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid userId format")
+    
+    try:
+        # Parameters for the Roblox API request
+        roblox_params = {
+            "userIds": userId,
+            "size": "150x150",
+            "format": "Png"
+        }
+        
+        # Make request to Roblox API
+        response = requests.get(ROBLOX_THUMBNAILS_API_URL, params=roblox_params)
+        response.raise_for_status()
+        
+        data = response.json()
+        
+        if not data or 'data' not in data:
+            raise HTTPException(status_code=404, detail="Avatar not found")
+            
+        user_data = next((item for item in data['data'] if str(item.get('targetId')) == userId), None)
+        if not user_data or 'imageUrl' not in user_data:
+            raise HTTPException(status_code=404, detail="Avatar not found")
+            
+        return {"imageUrl": user_data['imageUrl']}
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching Roblox avatar: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch avatar from Roblox")
+    except Exception as e:
+        logger.error(f"Unexpected error in get_roblox_avatar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
+
+@app.get("/api/top-players")
+async def get_top_players(
+    limit: int = 10,
+    authorized: bool = Depends(verify_api_key)
+):
+    """Get top players by sentiment score."""
+    try:
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database connection not available")
+        
+        response = supabase.rpc('get_top_players_by_sentiment', {'p_limit': limit}).execute()
+        
+        # Format the response to ensure we have the required fields
+        formatted_data = []
+        for player in response.data:
+            formatted_data.append({
+                "player_id": player["player_id"],
+                "player_name": player["player_name"],
+                "total_sentiment_score": player["total_sentiment_score"],
+                "message_count": player["message_count"]
+            })
+        
+        return formatted_data
+    except Exception as e:
+        logger.error(f"Error fetching top players: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch top players: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
