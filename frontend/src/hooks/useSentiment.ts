@@ -21,8 +21,8 @@ export function useSentiment() {
 
             const data = await sentimentApi.analyzeSentiment({
                 message,
-                player_id: 1,
-                player_name: "Test User",
+                player_id: 156, // builderman id :)
+                player_name: "Admin",
                 message_id: Date.now().toString() // same as os.time() on roblox lmao
             });
 
