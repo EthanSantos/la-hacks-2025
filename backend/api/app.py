@@ -144,6 +144,13 @@ def analyze_message():
             
             message_response = supabase.table('messages').insert(message_data).execute()
             print(f"Message data stored in Supabase")
+            
+            # Update player sentiment score after message is stored
+            try:
+                supabase.rpc('update_player_sentiment_score').execute()
+                print("Player sentiment score updated")
+            except Exception as score_error:
+                print(f"Error updating player sentiment score: {score_error}")
         
         except Exception as db_error:
             print(f"Supabase storage error: {db_error}")
@@ -273,6 +280,27 @@ def get_roblox_avatar():
         print(f"Roblox avatar proxy: An unexpected error occurred: {e}")
         return jsonify({"error": "An internal error occurred"}), 500
 
+@app.route('/api/top-players', methods=['GET'])
+def get_top_players():
+    try:
+        limit = int(request.args.get('limit', 10))
+        
+        response = supabase.rpc('get_top_players_by_sentiment', {'p_limit': limit}).execute()
+        
+        # Format the response to ensure we have the required fields
+        formatted_data = []
+        for player in response.data:
+            formatted_data.append({
+                "player_id": player["player_id"],
+                "player_name": player["player_name"],
+                "total_sentiment_score": player["total_sentiment_score"],
+                "message_count": player["message_count"]
+            })
+        
+        return jsonify(formatted_data)
+    except Exception as e:
+        print(f"Error fetching top players: {e}")
+        return jsonify({"error": f"Failed to fetch top players: {str(e)}"}), 500
 
 if __name__ == '__main__':
     print("Starting Flask development server...")
