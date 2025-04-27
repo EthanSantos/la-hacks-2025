@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
-import { Player, Message, SentimentAnalysisRequest, SentimentAnalysisResponse, TopPlayer } from '@/types/sentiment';
+import { Player, Message, SentimentAnalysisRequest, SentimentAnalysisResponse, TopPlayer, OverallStats, SentimentTrendPoint, SentimentDistributionSlice } from '@/types/sentiment';
 
 class SentimentAnalysisClient {
     private client: AxiosInstance;
@@ -123,6 +123,42 @@ class SentimentAnalysisClient {
             console.error('Fetch Top Players Error:', error);
             throw error;
         }
+    }
+
+    /**
+     * Fetch overall analytics statistics (all time).
+     * @returns Object containing total messages, average sentiment, unique players.
+     */
+    async getAllTimeOverallStats(): Promise<OverallStats> {
+        const response = await this.client.get<OverallStats>('/analytics/all-time/overall-stats');
+        return response.data;
+    }
+
+    /**
+     * Fetch sentiment trend data (all time).
+     * @param interval The time interval to group by ('day', 'week', 'month', 'year'). Defaults to 'month'.
+     * @returns Array of sentiment trend points.
+     */
+    async getAllTimeSentimentTrend(interval: string = 'month'): Promise<SentimentTrendPoint[]> {
+        const response = await this.client.get<SentimentTrendPoint[]>('/analytics/all-time/sentiment-trend', {
+            params: { interval }
+        });
+        return response.data;
+    }
+
+    /**
+     * Fetch sentiment distribution data (all time).
+     * @param positiveThreshold Score above which is considered positive.
+     * @param negativeThreshold Score below which is considered negative.
+     * @returns Array representing the distribution slices (Positive, Neutral, Negative).
+     */
+    async getAllTimeSentimentDistribution(positiveThreshold?: number, negativeThreshold?: number): Promise<SentimentDistributionSlice[]> {
+        const params: Record<string, number> = {};
+        if (positiveThreshold !== undefined) params.positive_threshold = positiveThreshold;
+        if (negativeThreshold !== undefined) params.negative_threshold = negativeThreshold;
+
+        const response = await this.client.get<SentimentDistributionSlice[]>('/analytics/all-time/sentiment-distribution', { params });
+        return response.data;
     }
 }
 
