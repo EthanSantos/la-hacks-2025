@@ -12,7 +12,7 @@ export default function SideNavbar() {
     <nav className="bg-white border-r border-gray-200 h-screen w-60 flex-shrink-0 flex flex-col">
       {/* Logo/Title */}
       <div className="p-4 border-b border-gray-200">
-        <h2 className="text-xl font-bold text-gray-800">Roblox.AI</h2>
+        <h2 className="text-xl font-bold text-gray-800">BLOOM.AI</h2>
       </div>
       
       {/* Navigation Links */}
