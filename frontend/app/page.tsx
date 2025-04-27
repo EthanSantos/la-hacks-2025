@@ -1,18 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import ChatLog from "@/components/chat-log/Chat";
+import ChatLog from '@/components/chat-log/Chat';
 import SentimentAnalyzer from "@/components/sentiment-analyzer/SentimentAnalyzer";
 import { useLiveMessages } from '@/hooks/useLiveMessages';
 import { Card, CardContent } from '@/components/ui/card';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase client (no changes)
+// Supabase client initialization
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// StatsCard Component (no changes needed here)
+// StatsCard Component
 interface StatsCardProps {
   title: string;
   value: string | number;
@@ -41,20 +41,15 @@ function StatsCard({ title, value, description, isLoading = false }: StatsCardPr
 }
 
 export default function HomePage() {
-  // Get live messages data
   const { messages, fetchMessages } = useLiveMessages();
-
-  // State for stats
   const [stats, setStats] = useState({
     totalMessages: 0,
     uniquePlayers: 0,
     avgSentiment: 0,
   });
-
-  // Loading state - only true for first load
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch stats from Supabase
+  // Fetch stats function
   const fetchStats = async () => {
     try {
       const [messagesResponse, playersResponse] = await Promise.all([
@@ -141,26 +136,28 @@ export default function HomePage() {
   };
 
   return (
-    <div className="container mx-auto h-screen flex flex-col py-4">
-      <div className="mb-2">
+    <div className="container mx-auto h-screen flex flex-col py-4 overflow-hidden">
+      {/* Header */}
+      <div className="mb-3 flex-shrink-0">
         <h1 className="text-2xl font-bold">Sentiment Analysis Dashboard</h1>
         <p className="text-gray-600 text-sm">Monitor chat messages and analyze sentiment in real-time</p>
       </div>
 
-      {/* Main content area: flex-1 to take remaining height, grid for columns */}
-      <div className="flex-1 grid grid-cols-3 gap-3 min-h-0">
-        {/* Left column: takes 2/3 width, h-full to fill grid cell height */}
-        <div className="col-span-2 h-full">
+      {/* Main content area */}
+      <div className="grid grid-cols-3 gap-3 flex-1 overflow-hidden">
+        {/* Left column - Chat container */}
+        <div className="col-span-2 overflow-hidden">
           <ChatLog title="Live Chat Messages" />
         </div>
 
-        {/* Right column: takes 1/3 width, h-full to fill grid cell height, flex column to stack Analyzer and Stats */}
-        <div className="col-span-1 h-full flex flex-col gap-3">
-          <div className="flex-1">
+        {/* Right column */}
+        <div className="col-span-1 flex flex-col gap-3 overflow-auto">
+          <div className="flex-1 overflow-hidden flex flex-col">
             <SentimentAnalyzer />
           </div>
 
-          <div className="space-y-3">
+          {/* Stats Cards container */}
+          <div className="space-y-3 flex-shrink-0">
             <StatsCard
               title="Total Messages"
               value={stats.totalMessages}

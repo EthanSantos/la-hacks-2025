@@ -19,20 +19,17 @@ export default function SentimentAnalyzer() {
   } = useSentiment();
 
   return (
-    
-    <Card className="w-full max-w-md h-full flex flex-col">
-      <CardHeader>
+    <Card className="w-full h-full flex flex-col">
+      <CardHeader className="flex-shrink-0">
         <CardTitle>Sentiment Analyzer</CardTitle>
         <CardDescription>
           Enter a message to analyze its sentiment score
         </CardDescription>
       </CardHeader>
 
-      
-      <CardContent className="flex-1 flex flex-col p-3 space-y-4">
-
+      <CardContent className="flex flex-col p-3 space-y-4 flex-1 overflow-auto" style={{ height: 0 }}>
         <Textarea
-          className="flex-1 min-h-[100px]"
+          className="min-h-[100px] resize-none"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Enter your message to analyze"
@@ -47,7 +44,7 @@ export default function SentimentAnalyzer() {
         {result && <SentimentResult result={result} />}
       </CardContent>
 
-      <CardFooter>
+      <CardFooter className="flex-shrink-0">
         <Button
           onClick={analyzeSentiment}
           className="w-full"

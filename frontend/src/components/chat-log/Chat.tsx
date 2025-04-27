@@ -13,17 +13,17 @@ export default function ChatLog({ title = "Live Chat Log" }) {
         loading,
         fetchMessages
     } = useLiveMessages();
-
+    
     // Handle manual refresh
     const handleRefresh = useCallback(() => {
         console.log('Manual refresh triggered');
         fetchMessages(true); // Force refresh
     }, [fetchMessages]);
-
+    
     // Initial fetch and polling
     useEffect(() => {
         console.log('Setting up initial fetch and polling');
-
+        
         // Fetch immediately on mount
         fetchMessages(true);
 
@@ -41,15 +41,15 @@ export default function ChatLog({ title = "Live Chat Log" }) {
     }, [fetchMessages]);
 
     return (
-        <Card className="h-[calc(100vh-200px)] flex flex-col">
-            <CardHeader className="border-b p-4">
+        <div className="h-full flex flex-col overflow-hidden border border-gray-200 rounded-lg bg-white">
+            <div className="p-4 border-b border-gray-200 flex-shrink-0">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-semibold">{title}</h2>
                     <div className="flex items-center gap-4">
                         {error && <p className="text-red-500">{error}</p>}
-                        <Button
-                            variant="outline"
-                            onClick={handleRefresh}
+                        <Button 
+                            variant="outline" 
+                            onClick={handleRefresh} 
                             disabled={loading}
                             size="sm"
                         >
@@ -57,21 +57,21 @@ export default function ChatLog({ title = "Live Chat Log" }) {
                         </Button>
                     </div>
                 </div>
-            </CardHeader>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {loading && messages.length === 0 ? (
-                    <div className="text-center text-gray-500">Loading messages...</div>
-                ) : messages.length === 0 ? (
-                    <div className="text-center text-gray-500">No messages found</div>
-                ) : (
-                    <>
-                        {messages.map((msg) => (
-                            <MessageItem key={msg.message_id} msg={msg} />
-                        ))}
-                    </>
-                )}
             </div>
-        </Card>
+
+            <div className="overflow-y-auto flex-1" style={{ height: 0 }}>
+                <div className="p-4 space-y-4">
+                    {loading && messages.length === 0 ? (
+                        <div className="text-center text-gray-500">Loading messages...</div>
+                    ) : messages.length === 0 ? (
+                        <div className="text-center text-gray-500">No messages found</div>
+                    ) : (
+                        messages.map((msg) => (
+                            <MessageItem key={msg.message_id} msg={msg} />
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
     );
 }
