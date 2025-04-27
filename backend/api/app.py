@@ -78,17 +78,27 @@ def analyze_message():
     try:
         
         prompt = f"""
-        Analyze the following message for its sentiment.
-        Give a sentiment score from -100 (extremely negative) to 100 (extremely positive).
-        
-        Message: {user_message}
-        
-        Format your response in valid JSON like this example:
+        You are a precise sentiment analysis tool. Evaluate the sentiment expressed in the user message below.
+
+        Assign a sentiment score based on the following scale:
+        - -100 to -51: Very Negative (Strongly expresses anger, sadness, disgust, etc.)
+        - -50 to -11: Negative (Expresses mild negativity, dissatisfaction, criticism)
+        - -10 to 10: Neutral (Objective statements, questions, ambiguous sentiment, or lacking clear emotion)
+        - 11 to 50: Positive (Expresses mild positivity, satisfaction, agreement)
+        - 51 to 100: Very Positive (Strongly expresses joy, excitement, high praise, etc.)
+
+        User Message:
+        >>>
+        {user_message}
+        <<<
+
+        Your response must be *only* a valid JSON object containing the single key "sentiment_score" mapped to the calculated integer score.
+        Ensure absolutely no other text, markdown, or explanation surrounds the JSON output.
+
+        Required JSON Output Format:
         {{
-          "sentiment_score": 75
+          "sentiment_score": <calculated_integer_score>
         }}
-        
-        Respond ONLY with the JSON, nothing else.
         """
         
         print("Sending request to Gemini API...")
