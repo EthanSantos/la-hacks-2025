@@ -9,44 +9,47 @@ import { useSentiment } from '@/hooks/useSentiment';
 import SentimentResult from './SentimentResult';
 
 export default function SentimentAnalyzer() {
-  const { 
-    message, 
-    setMessage, 
-    result, 
-    error, 
+  const {
+    message,
+    setMessage,
+    result,
+    error,
     isAnalyzing,
-    analyzeSentiment 
+    analyzeSentiment
   } = useSentiment();
 
   return (
-    <Card className="w-full max-w-md">
+    
+    <Card className="w-full max-w-md h-full flex flex-col">
       <CardHeader>
         <CardTitle>Sentiment Analyzer</CardTitle>
         <CardDescription>
           Enter a message to analyze its sentiment score
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <Textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Enter your message to analyze"
-            className="min-h-[100px]"
-          />
-          
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          {result && <SentimentResult result={result} />}
-        </div>
+
+      
+      <CardContent className="flex-1 flex flex-col p-3 space-y-4">
+
+        <Textarea
+          className="flex-1 min-h-[100px]"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Enter your message to analyze"
+        />
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {result && <SentimentResult result={result} />}
       </CardContent>
+
       <CardFooter>
-        <Button 
-          onClick={analyzeSentiment} 
+        <Button
+          onClick={analyzeSentiment}
           className="w-full"
           disabled={isAnalyzing}
         >
