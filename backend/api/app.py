@@ -83,22 +83,51 @@ async def analyze_message(
 ):
     """Basic sentiment analysis endpoint."""
     try:
-        # Generate numeric IDs for Supabase compatibility
-        message_id = request.message_id or generate_numeric_id()
-        player_id = request.player_id or generate_numeric_id()
-        player_name = request.player_name or f"Player{uuid.uuid4().hex[:4]}"
+        # Extract values from request, similar to Flask version
+        user_message = request.message
+        message_id = request.message_id
+        player_id = request.player_id
+        player_name = request.player_name
+        
+        # Validate required fields
+        if not user_message:
+            raise HTTPException(status_code=400, detail="No message provided")
+        if not message_id:
+            # Unlike Flask, we'll generate a message_id if not provided
+            message_id = str(generate_numeric_id())
+        
+        # Handle player_id similar to your Flask implementation
+        if player_id is None:
+            player_id = generate_numeric_id()  # Generate numeric ID
+        else:
+            # Try to convert string player_id to int if it's numeric
+            try:
+                if isinstance(player_id, str) and player_id.isdigit():
+                    player_id = int(player_id)
+            except:
+                # Keep as is if conversion fails
+                pass
+                
+        # Use provided player_name or generate one
+        if player_name is None:
+            player_name = f"Player{uuid.uuid4().hex[:4]}"
         
         # Analyze sentiment using transformer models
-        analysis_result = await perform_analysis(request.message)
+        analysis_result = await perform_analysis(user_message)
         sentiment_score = analysis_result.sentiment.score
         emotion = get_emotion(sentiment_score)
         
-        # Store data in Supabase
+        # Store data in Supabase - ensure we're using a compatible type for player_id
+        db_player_id = player_id
+        if isinstance(db_player_id, str) and not db_player_id.isdigit():
+            # Create a numeric ID for non-numeric string player_id
+            db_player_id = generate_numeric_id()
+        
         if supabase:
             try:
                 # Check if player exists in the players table using upsert
                 player_data = {
-                    "player_id": player_id,
+                    "player_id": db_player_id,
                     "player_name": player_name,
                     "last_seen": datetime.now().isoformat()
                 }
@@ -109,8 +138,8 @@ async def analyze_message(
                 # Store the message data
                 message_data = {
                     "message_id": message_id,
-                    "player_id": player_id,
-                    "message": request.message,
+                    "player_id": db_player_id,
+                    "message": user_message,
                     "sentiment_score": sentiment_score,
                     "created_at": datetime.now().isoformat()
                 }
@@ -128,12 +157,12 @@ async def analyze_message(
             except Exception as db_error:
                 logger.error(f"Supabase storage error: {str(db_error)}")
         
-        # Prepare result
+        # Prepare result - use original player_id in response to maintain client expectations
         result = {
             "player_id": player_id,
             "player_name": player_name,
             "message_id": message_id,
-            "message": request.message,
+            "message": user_message,
             "sentiment_score": sentiment_score,
             "emotion": emotion
         }
@@ -141,6 +170,8 @@ async def analyze_message(
         logger.info(f"Returning analysis result: {result}")
         return result
         
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Error in analyze_message: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")

@@ -12,7 +12,7 @@ class RobloxAPIClient {
     private cacheExpirationTime: number = 60 * 60 * 1000;
 
     constructor(
-        baseURL: string = "https://la-hacks-api.vercel.app/api",
+        baseURL: string = "http://127.0.0.1:8000/api",
         cacheExpirationTimeMs?: number
     ) {
         this.client = axios.create({

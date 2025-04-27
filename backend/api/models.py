@@ -78,9 +78,13 @@ class AgentState(TypedDict):
 
 class AnalyzeRequest(BaseModel):
     message: str
-    message_id: Optional[str] = None
-    player_id: Optional[str] = None
+    message_id: Optional[Any] = None
+    player_id: Optional[Any] = None
     player_name: Optional[str] = None
+    
+    model_config = {
+        "extra": "ignore"  # Ignore extra fields
+    }
 
 class AnalyzeResult(BaseModel):
     player_id: str
