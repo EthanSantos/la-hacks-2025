@@ -77,7 +77,7 @@ export default function SentimentAnalyzer() {
             <DialogTitle>Sentiment Analysis Result</DialogTitle>
           </DialogHeader>
           
-          <div className="py-4"> 
+          <div className="py-2"> 
              {result && <SentimentResult result={result} />}
           </div>
           
