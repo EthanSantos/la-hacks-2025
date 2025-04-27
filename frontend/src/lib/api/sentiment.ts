@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
-import { Player, Message, SentimentAnalysisRequest, SentimentAnalysisResponse } from '@/types/sentiment';
+import { Player, Message, SentimentAnalysisRequest, SentimentAnalysisResponse, TopPlayer } from '@/types/sentiment';
 
 class SentimentAnalysisClient {
     private client: AxiosInstance;
@@ -104,6 +104,23 @@ class SentimentAnalysisClient {
             return response.data;
         } catch (error) {
             console.error('Fetch Live Messages Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Fetch top players by sentiment score
+     * @param limit Number of top players to fetch (default 10)
+     * @returns Array of top players with sentiment scores
+     */
+    async getTopPlayers(limit: number = 10): Promise<TopPlayer[]> {
+        try {
+            const response = await this.client.get<TopPlayer[]>('/top-players', {
+                params: { limit }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Fetch Top Players Error:', error);
             throw error;
         }
     }

@@ -36,3 +36,10 @@ export interface SentimentResult {
     sentiment_score: number;
     message_id?: string;
 }
+
+export interface TopPlayer {
+    player_id: number;
+    player_name: string;
+    total_sentiment_score: number;
+    message_count: number;
+}
