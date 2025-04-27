@@ -26,7 +26,7 @@ class RobloxAPIClient {
         // Load cached data from localStorage on init
         this.loadCacheFromStorage();
 
-        // Store avatar configuration
+        // Add request interceptor for logging
         this.client.interceptors.request.use(config => {
             // Log requests
             console.log('Backend Proxy Request:', config.method?.toUpperCase(), config.url, config.params);
@@ -42,7 +42,7 @@ class RobloxAPIClient {
             console.log('Backend Proxy Response:', response.status, response.data);
             return response;
         }, error => {
-            console.error('Backend Proxy Response Error:', error.response?.data || error.message);
+            console.error('Backend Proxy Response Error:', error.response?.status, error.response?.data || error.message);
             return Promise.reject(error);
         });
     }
@@ -96,6 +96,7 @@ class RobloxAPIClient {
 
     /**
      * Fetches avatar headshot image URL for a user via the backend proxy.
+     * Handles caching and coalesces multiple requests for the same ID.
      * @param userId The Roblox user ID (as number or string).
      * @returns A promise that resolves with the image URL string, or null if not found/error.
      */
@@ -106,7 +107,7 @@ class RobloxAPIClient {
             return null; // Don't make the request for invalid IDs
         }
 
-        // Ensure userId is treated as a string for the API call
+        // Ensure userId is treated as a string for the API call and cache key
         const userIdString = String(userId);
 
         // Check if we have a valid cached entry
@@ -119,25 +120,22 @@ class RobloxAPIClient {
         // Check if there's a pending request for this user ID
         if (this.pendingRequests.has(userIdString)) {
             console.log(`Reusing in-flight request for user ${userIdString}`);
+            // Return the existing promise
             return this.pendingRequests.get(userIdString)!;
         }
 
-        // Create a new request and store it in the pending requests map
-        const requestPromise = this.fetchAvatarUrl(userIdString);
+        // Create a new request promise and store it
+        const requestPromise = this.fetchAvatarUrl(userIdString)
+            .finally(() => {
+                // Ensure the pending request is removed once it settles (resolves or rejects)
+                this.pendingRequests.delete(userIdString);
+            });
+
         this.pendingRequests.set(userIdString, requestPromise);
 
-        try {
-            // Await the result
-            const result = await requestPromise;
-            // Remove from pending requests once completed
-            this.pendingRequests.delete(userIdString);
-            return result;
-        } catch (error) {
-            // Remove from pending requests on error
-            this.pendingRequests.delete(userIdString);
-            throw error;
-        }
+        return requestPromise;
     }
+
 
     /**
      * Actual implementation of fetching avatar URL from backend
@@ -154,28 +152,39 @@ class RobloxAPIClient {
             // Check if the request to your backend was successful and data is present
             if (response.status === 200 && response.data && typeof response.data.imageUrl === 'string') {
                 const imageUrl = response.data.imageUrl;
-                console.log(`Fetched imageUrl from backend proxy for user ${userIdString}: ${imageUrl}`);
-                
-                // Cache the result
-                this.avatarCache.set(userIdString, {
+                console.log(`Workspaceed imageUrl from backend proxy for user ${userIdString}: ${imageUrl}`);
+
+                // Cache the successful result
+                const newEntry: CacheEntry = {
                     url: imageUrl,
                     timestamp: Date.now()
-                });
-                
+                };
+                this.avatarCache.set(userIdString, newEntry);
+
                 // Save updated cache to localStorage
                 this.saveCacheToStorage();
-                
+
                 return imageUrl;
             } else {
                 // Handle cases where backend returns 200 but data is not as expected
-                console.error('Unexpected response structure from backend proxy:', response.data);
+                console.warn('Unexpected successful response structure from backend proxy:', response.data);
+                
                 return null;
             }
         } catch (error: any) {
-            // Handle errors from your backend proxy (e.g., 400, 404, 500)
-            console.error(`Error fetching avatar headshot from backend proxy for user ID ${userIdString}:`, 
-                error.response?.data?.error || error.message);
-            return null; // Return null on any error
+            if (error.response && error.response.status === 404) {
+             
+                console.log(`Avatar not found for user ID ${userIdString} (404 from proxy: ${error.response.data?.error || 'Not Found'}).`);
+               
+            } else {
+
+                console.error(`Error fetching avatar headshot from backend proxy for user ID ${userIdString}:`,
+                    error.response?.status, // Log status if available
+                    error.response?.data?.error || error.message); // Log specific error message or general message
+            }
+
+            // Return null in all error cases, indicating the URL could not be retrieved
+            return null;
         }
     }
 
