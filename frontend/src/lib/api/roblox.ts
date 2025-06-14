@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { getApiUrl } from '@/config/api';
 
 interface CacheEntry {
     url: string;
@@ -12,11 +13,11 @@ class RobloxAPIClient {
     private cacheExpirationTime: number = 60 * 60 * 1000; // 1 hour default
 
     constructor(
-        baseURL: string = "http://localhost:8000/api", // Local development URL
+        baseURL?: string,
         cacheExpirationTimeMs?: number
     ) {
         this.client = axios.create({
-            baseURL,
+            baseURL: baseURL || `${getApiUrl()}/api`,
         });
 
         if (cacheExpirationTimeMs) {
