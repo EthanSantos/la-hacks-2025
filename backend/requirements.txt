@@ -6,3 +6,4 @@ supabase
 requests
 pydantic
 python-multipart
+pydantic-ai-slim[google]
