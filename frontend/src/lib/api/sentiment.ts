@@ -37,15 +37,15 @@ class SentimentAnalysisClient {
     }
 
     /**
-     * Analyze sentiment of a single message
+     * Analyze sentiment of a single message (returns immediately, moderation runs in background)
      * @param data Sentiment analysis request data
-     * @returns Sentiment analysis response
+     * @returns Sentiment analysis response (moderation data may be pending)
      */
     async analyzeSentiment(data: SentimentAnalysisRequest): Promise<SentimentAnalysisResponse> {
         // Generate message_id if not provided
         const requestData = {
             ...data,
-            message_id: data.message_id || `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            message_id: data.message_id || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
             player_id: data.player_id || Math.floor(Math.random() * 1000),
             player_name: data.player_name || `Player${Math.floor(Math.random() * 1000)}`
         };
@@ -55,6 +55,52 @@ class SentimentAnalysisClient {
             return response.data;
         } catch (error) {
             console.error('Sentiment Analysis Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Check moderation status for a specific message
+     * @param messageId The message ID to check
+     * @returns Message with updated moderation status
+     */
+    async checkModerationStatus(messageId: string): Promise<Message | null> {
+        try {
+            const messages = await this.getMessages();
+            return messages.find(msg => msg.message_id === messageId) || null;
+        } catch (error) {
+            console.error('Check Moderation Status Error:', error);
+            return null;
+        }
+    }
+
+
+
+    /**
+     * Moderate a message only (no sentiment analysis)
+     * @param data Sentiment analysis request data
+     * @returns Moderation result
+     */
+    async moderateMessage(data: SentimentAnalysisRequest): Promise<{
+        passed: boolean;
+        action?: string;
+        reason?: string;
+        pii_detected: boolean;
+        content_issues: boolean;
+        error?: string;
+    }> {
+        const requestData = {
+            ...data,
+            message_id: data.message_id || `mod_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+            player_id: data.player_id || Math.floor(Math.random() * 1000),
+            player_name: data.player_name || `Player${Math.floor(Math.random() * 1000)}`
+        };
+
+        try {
+            const response = await this.client.post('/moderate', requestData);
+            return response.data;
+        } catch (error) {
+            console.error('Message Moderation Error:', error);
             throw error;
         }
     }

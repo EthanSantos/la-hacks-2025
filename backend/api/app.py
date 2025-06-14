@@ -10,10 +10,15 @@ import random
 import json
 import re
 from supabase import create_client, Client
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
 import logging
 from dotenv import load_dotenv
+import asyncio
+
+# Import the new AI service
+from services.chat_service import ChatService
+from models.chat import ChatMessage
 
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -66,12 +71,69 @@ class AnalyzeRequest(BaseModel):
     player_id: Optional[int] = None
     player_name: Optional[str] = None
 
+
+
+# Simple response for Roblox - just sentiment data
+class SentimentResponse(BaseModel):
+    player_id: int
+    player_name: str
+    message_id: str
+    message: str
+    sentiment_score: int
+    error: Optional[str] = None
+
+# Full response for frontend - includes moderation data
 class AnalyzeResponse(BaseModel):
     player_id: int
     player_name: str
     message_id: str
     message: str
     sentiment_score: int
+    moderation_passed: bool
+    blocked: bool
+    moderation_action: Optional[str] = None
+    moderation_reason: Optional[str] = None
+    sentiment_details: Optional[Dict[str, Any]] = None
+    community_intent: Optional[Dict[str, Any]] = None
+    rewards: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+# Background moderation function
+async def run_background_moderation(chat_message: ChatMessage, message_id: str, player_id: int, user_message: str):
+    """Run moderation analysis in background and update database if needed"""
+    try:
+        logger.info(f"Starting background moderation for message {message_id}")
+        
+        # Run moderation
+        chat_service = ChatService()
+        moderation_state = await chat_service.moderation_service.moderate_chat_message(chat_message)
+        
+        # Check if moderation found issues
+        if moderation_state.recommended_action:
+            logger.info(f"Moderation action recommended: {moderation_state.recommended_action.action.value}")
+            
+            # Update the message in database with moderation results
+            try:
+                update_data = {
+                    "moderation_action": moderation_state.recommended_action.action.value,
+                    "moderation_reason": moderation_state.recommended_action.reason
+                }
+                
+                supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
+                logger.info(f"Updated message {message_id} with moderation results")
+                
+                # Check if message should be flagged for deletion
+                from agents.moderation import ActionType
+                if moderation_state.recommended_action.action in [ActionType.DELETE_MESSAGE, ActionType.BAN, ActionType.KICK]:
+                    logger.warning(f"Message {message_id} flagged for {moderation_state.recommended_action.action.value}")
+                    
+            except Exception as db_error:
+                logger.error(f"Failed to update moderation results in database: {db_error}")
+        else:
+            logger.info(f"No moderation issues found for message {message_id}")
+            
+    except Exception as e:
+        logger.error(f"Background moderation failed for message {message_id}: {e}")
 
 # Dependency for API key validation
 async def verify_api_key(request: Request):
@@ -90,11 +152,16 @@ async def home():
         "status": "success"
     }
 
-@app.post("/api/analyze", response_model=AnalyzeResponse)
-async def analyze_message(
+
+
+@app.post("/api/analyze", response_model=SentimentResponse)
+async def analyze_sentiment_with_background_moderation(
     request_data: AnalyzeRequest,
     _: None = Depends(verify_api_key)
 ):
+    """
+    Returns sentiment analysis immediately, runs moderation in background
+    """
     user_message = request_data.message
     message_id = request_data.message_id
     player_id = request_data.player_id
@@ -106,71 +173,39 @@ async def analyze_message(
     if player_name is None:
         player_name = f"Player{random.randint(1, 999)}"
     
-    logger.info(f"Processing request: Player ID: {player_id}, Player Name: {player_name}")
+    logger.info(f"Processing enhanced analysis: Player ID: {player_id}, Player Name: {player_name}")
     logger.info(f"Message to analyze: {user_message}")
     
     try:
-        prompt = f"""
-        You are a precise sentiment analysis tool. Evaluate the sentiment expressed in the user message below.
-
-        Assign a sentiment score based on the following scale:
-        - -100 to -51: Very Negative (Strongly expresses anger, sadness, disgust, etc.)
-        - -50 to -11: Negative (Expresses mild negativity, dissatisfaction, criticism)
-        - -10 to 10: Neutral (Objective statements, questions, ambiguous sentiment, or lacking clear emotion)
-        - 11 to 50: Positive (Expresses mild positivity, satisfaction, agreement)
-        - 51 to 100: Very Positive (Strongly expresses joy, excitement, high praise, etc.)
-
-        User Message:
-        >>>
-        {user_message}
-        <<<
-
-        Your response must be *only* a valid JSON object containing the single key "sentiment_score" mapped to the calculated integer score.
-        Ensure absolutely no other text, markdown, or explanation surrounds the JSON output.
-
-        Required JSON Output Format:
-        {{
-          "sentiment_score": <calculated_integer_score>
-        }}
-        """
+        # Create ChatMessage object
+        chat_message = ChatMessage(
+            message_id=message_id,
+            content=user_message,
+            user_id=player_id,
+            timestamp=datetime.now(timezone.utc),
+            deleted=False
+        )
         
-        logger.info("Sending request to Gemini API...")
-        response = model.generate_content(prompt)
-        response_text = response.text
-        logger.info(f"Received response from Gemini: {response_text}")
-
-        try:
-            json_match = re.search(r'({[\s\S]*})', response_text)
-            if json_match:
-                json_str = json_match.group(1)
-                logger.info(f"Extracted JSON string: {json_str}")
-                gemini_data = json.loads(json_str)
-            else:
-                gemini_data = json.loads(response_text)
-                
-            sentiment_score = gemini_data.get("sentiment_score", 0)
-            logger.info(f"Parsed sentiment score: {sentiment_score}")
-        except Exception as json_error:
-            logger.error(f"JSON parsing error: {json_error}")
-            sentiment_score = 0
-            logger.info("Using fallback sentiment values due to parsing error")
+        # Run ONLY sentiment analysis for Roblox compatibility
+        chat_service = ChatService()
+        sentiment_result = await chat_service.sentiment_service.analyze_message_sentiment(
+            chat_message, player_name
+        )
         
-        # Generate a response
-        result = {
-            "player_id": player_id,
-            "player_name": player_name,
-            "message_id": message_id,
-            "message": user_message,
-            "sentiment_score": sentiment_score
-        }
+        # Extract sentiment score
+        sentiment_score = 0
+        if sentiment_result and sentiment_result.chat_analysis:
+            sentiment_score = sentiment_result.chat_analysis.sentiment_score or 0
+        
+        logger.info(f"Sentiment analysis completed with score: {sentiment_score}")
         
         # Store the data in supabase
         try:
-            # Check if the player exists in the players table
+            # Store player data
             player_data = {
                 "player_id": player_id,
                 "player_name": player_name,
-                "last_seen": datetime.utcnow().isoformat() + "Z"
+                "last_seen": datetime.now(timezone.utc).isoformat()
             }
             
             player_response = supabase.table('players').upsert(player_data).execute()
@@ -182,7 +217,7 @@ async def analyze_message(
                 "player_id": player_id,
                 "message": user_message,
                 "sentiment_score": sentiment_score,
-                "created_at": datetime.utcnow().isoformat() + "Z"
+                "created_at": datetime.now(timezone.utc).isoformat()
             }
             
             message_response = supabase.table('messages').insert(message_data).execute()
@@ -198,21 +233,55 @@ async def analyze_message(
         except Exception as db_error:
             logger.error(f"Supabase storage error: {db_error}")
         
-        logger.info(f"Returning result: {result}")
+        # Return simple sentiment result for Roblox IMMEDIATELY
+        result = SentimentResponse(
+            player_id=player_id,
+            player_name=player_name,
+            message_id=message_id,
+            message=user_message,
+            sentiment_score=sentiment_score
+        )
+        
+        logger.info(f"Returning sentiment result: {result}")
+        
+        # Run moderation in background (after response is sent)
+        asyncio.create_task(run_background_moderation(chat_message, message_id, player_id, user_message))
+        
         return result
     
     except Exception as e:
         logger.error(f"Error in sentiment analysis: {e}")
-        fallback_result = {
-            "player_id": player_id,
-            "player_name": player_name,
-            "message_id": message_id,
-            "message": user_message,
-            "sentiment_score": 0
-        }
+        fallback_result = SentimentResponse(
+            player_id=player_id,
+            player_name=player_name,
+            message_id=message_id,
+            message=user_message,
+            sentiment_score=0,
+            error=str(e)
+        )
         
-        logger.info(f"Returning fallback result: {fallback_result}")
+        logger.info(f"Returning sentiment fallback result: {fallback_result}")
         return fallback_result
+
+
+@app.post("/api/moderate", response_model=Dict[str, Any])
+async def moderate_message_endpoint(
+    request_data: AnalyzeRequest,
+    _: None = Depends(verify_api_key)
+):
+    """
+    Moderation-only endpoint for checking messages
+    """
+    try:
+        result = await ai_service.moderate_message_only(
+            message=request_data.message,
+            message_id=request_data.message_id,
+            user_id=request_data.player_id or random.randint(1, 100)
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error in moderation endpoint: {e}")
+        return {"passed": True, "error": str(e)}
 
 @app.get("/api/players")
 async def get_players():

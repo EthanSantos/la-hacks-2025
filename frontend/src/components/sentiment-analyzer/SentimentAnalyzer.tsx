@@ -8,26 +8,24 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogDescription
+  DialogTitle
 } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSentiment } from '@/hooks/useSentiment';
 import SentimentResult from './SentimentResult';
-import { Send, InfoIcon, BarChart } from 'lucide-react';
+import { Send, InfoIcon, BarChart2, Loader2 } from 'lucide-react';
 
 export default function SentimentAnalyzer() {
   const {
-    message,
-    setMessage,
     result,
     error,
-    isAnalyzing,
+    isLoading,
+    moderationPending,
     analyzeSentiment
   } = useSentiment();
 
+  const [message, setMessage] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
@@ -38,17 +36,17 @@ export default function SentimentAnalyzer() {
 
   const handleAnalyze = () => {
     if (message.trim()) {
-      analyzeSentiment();
+      analyzeSentiment(message.trim(), "Admin", 156);
     }
   };
 
   return (
     <>
-      <Card className="w-full h-full flex flex-col shadow-sm">
+      <Card className="w-full h-full flex flex-col">
         <CardHeader className="flex-shrink-0 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <BarChart className="h-5 w-5 mr-2 text-primary" />
+              <BarChart2 className="h-5 w-5 mr-2 text-primary" />
               <CardTitle>Sentiment Analyzer</CardTitle>
             </div>
             <TooltipProvider>
@@ -69,7 +67,6 @@ export default function SentimentAnalyzer() {
           </CardDescription>
         </CardHeader>
 
-        {/* Removed overflow-auto from this className */}
         <CardContent className="flex flex-col px-6 space-y-4 flex-1">
           <Textarea
             className="min-h-[125px] resize-none flex-1 focus-visible:ring-primary"
@@ -89,11 +86,11 @@ export default function SentimentAnalyzer() {
           <Button
             onClick={handleAnalyze}
             className="w-full"
-            disabled={isAnalyzing || !message.trim()}
+            disabled={isLoading || !message.trim()}
           >
-            {isAnalyzing ? (
+            {isLoading ? (
               <span className="flex items-center justify-center">
-                <span className="animate-spin h-4 w-4 mr-2 border-2 border-t-transparent rounded-full" />
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Analyzing...
               </span>
             ) : (
@@ -107,16 +104,16 @@ export default function SentimentAnalyzer() {
       </Card>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[1100px] p-6 rounded-xl" style={{ maxHeight: "85vh" }}>
-          <DialogHeader className="mb-4">
-            <DialogTitle>Sentiment Analysis Result</DialogTitle>
-            <DialogDescription>
-              Analysis of emotional tone and sentiment score
-            </DialogDescription>
+        <DialogContent className="sm:max-w-[1400px] p-0 rounded-xl" style={{ maxHeight: "90vh" }}>
+          <DialogHeader className="p-6 pb-4 border-b">
+            <DialogTitle className="text-xl font-semibold">
+              Analysis Results
+            </DialogTitle>
           </DialogHeader>
 
-          {result && <SentimentResult result={result} />}
-
+          <div className="p-6 overflow-y-auto" style={{ maxHeight: "calc(90vh - 120px)" }}>
+            {result && <SentimentResult result={result} moderationPending={moderationPending} />}
+          </div>
         </DialogContent>
       </Dialog>
     </>

@@ -3,23 +3,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-
-// Define the SentimentResult type
-export interface SentimentResult {
-    player_id: number;
-    player_name: string;
-    message_id?: string;
-    message: string;
-    sentiment_score: number;
-}
+import type { SentimentResult } from '@/types/sentiment';
 
 // Create a properly typed props interface
 interface SentimentResultProps {
     result: SentimentResult;
+    moderationPending?: boolean;
 }
 
 // Export the component with explicit typing
-const SentimentResult: React.FC<SentimentResultProps> = ({ result }) => {
+const SentimentResult: React.FC<SentimentResultProps> = ({ result, moderationPending = false }) => {
     // Determine sentiment category based on score
     const getSentimentCategory = (score: number) => {
         if (score >= 75) return { label: 'Very Positive', color: 'text-green-600', bgColor: 'bg-green-100', badgeVariant: 'success' };
@@ -91,7 +84,7 @@ const SentimentResult: React.FC<SentimentResultProps> = ({ result }) => {
             </div>
             
             {/* Analysis breakdown */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Card>
                     <CardContent className="p-4 space-y-2">
                         <h3 className="font-medium">Sentiment Details</h3>
@@ -101,6 +94,43 @@ const SentimentResult: React.FC<SentimentResultProps> = ({ result }) => {
                             
                             <span className="text-gray-500">Category:</span>
                             <span className={color}>{label}</span>
+                        </div>
+                    </CardContent>
+                </Card>
+                
+                <Card>
+                    <CardContent className="p-4 space-y-2">
+                        <h3 className="font-medium">Moderation Status</h3>
+                        <div className="space-y-2">
+                            {moderationPending ? (
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                                        <span className="animate-pulse">⏳ Analyzing...</span>
+                                    </Badge>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <Badge 
+                                        variant={result.moderation_passed ? "secondary" : "destructive"}
+                                        className={result.moderation_passed ? "bg-green-100 text-green-800 border-green-200" : ""}
+                                    >
+                                        {result.moderation_passed ? "✓ Passed" : "⚠ Flagged"}
+                                    </Badge>
+                                    {result.blocked && <Badge variant="destructive">Blocked</Badge>}
+                                </div>
+                            )}
+                            {!moderationPending && result.moderation_action && (
+                                <div className="text-sm">
+                                    <span className="text-gray-500">Action:</span>
+                                    <span className="ml-1 font-medium">{result.moderation_action}</span>
+                                </div>
+                            )}
+                            {!moderationPending && result.moderation_reason && (
+                                <p className="text-xs text-gray-600">{result.moderation_reason}</p>
+                            )}
+                            {moderationPending && (
+                                <p className="text-xs text-gray-600">Checking for policy violations...</p>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -118,6 +148,47 @@ const SentimentResult: React.FC<SentimentResultProps> = ({ result }) => {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Community Intent & Rewards */}
+            {(result.community_intent || result.rewards) && (
+                <>
+                    <Separator />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {result.community_intent && (
+                            <Card>
+                                <CardContent className="p-4 space-y-2">
+                                    <h3 className="font-medium">Community Intent</h3>
+                                    <div className="space-y-2">
+                                        {result.community_intent.intent_type && (
+                                            <Badge variant="outline">{result.community_intent.intent_type}</Badge>
+                                        )}
+                                        {result.community_intent.reason && (
+                                            <p className="text-sm text-gray-600">{result.community_intent.reason}</p>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                        
+                        {result.rewards && (
+                            <Card>
+                                <CardContent className="p-4 space-y-2">
+                                    <h3 className="font-medium">Rewards</h3>
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-lg font-bold ${result.rewards.points_awarded >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {result.rewards.points_awarded >= 0 ? '+' : ''}{result.rewards.points_awarded}
+                                            </span>
+                                            <span className="text-sm text-gray-500">points</span>
+                                        </div>
+                                        <p className="text-xs text-gray-600">{result.rewards.reason}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 };

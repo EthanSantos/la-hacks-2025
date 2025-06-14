@@ -12,6 +12,8 @@ export interface Message {
     message: string;
     sentiment_score: number;
     created_at: string;
+    moderation_action?: string;
+    moderation_reason?: string;
 }
 
 export interface SentimentAnalysisRequest {
@@ -27,6 +29,20 @@ export interface SentimentAnalysisResponse {
     message_id: string;
     message: string;
     sentiment_score: number;
+    sentiment_details?: {
+        confidence?: number;
+        emotion?: string;
+        toxicity_score?: number;
+    };
+    community_intent?: {
+        intent_type?: string;
+        reason?: string;
+    };
+    rewards?: {
+        points_awarded: number;
+        reason: string;
+    };
+    error?: string;
 }
 
 export interface SentimentResult {
@@ -35,6 +51,26 @@ export interface SentimentResult {
     message: string;
     sentiment_score: number;
     message_id?: string;
+    moderation_passed: boolean;
+    blocked: boolean;
+    moderation_action?: string;
+    moderation_reason?: string;
+    pii_detected?: boolean;
+    content_issues?: boolean;
+    sentiment_details?: {
+        confidence?: number;
+        emotion?: string;
+        toxicity_score?: number;
+    };
+    community_intent?: {
+        intent_type?: string;
+        reason?: string;
+    };
+    rewards?: {
+        points_awarded: number;
+        reason: string;
+    };
+    error?: string;
 }
 
 export interface TopPlayer {
