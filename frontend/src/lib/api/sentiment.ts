@@ -6,7 +6,7 @@ class SentimentAnalysisClient {
     private client: AxiosInstance;
 
     constructor(
-        baseURL: string = "https://la-hacks-api.vercel.app/api",
+        baseURL: string = "http://localhost:8000/api",
         apiKey?: string
     ) {
         // Create axios instance with base configuration

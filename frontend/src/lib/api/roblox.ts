@@ -9,10 +9,10 @@ class RobloxAPIClient {
     private client: AxiosInstance;
     private avatarCache: Map<string, CacheEntry> = new Map();
     private pendingRequests: Map<string, Promise<string | null>> = new Map();
-    private cacheExpirationTime: number = 60 * 60 * 1000;
+    private cacheExpirationTime: number = 60 * 60 * 1000; // 1 hour default
 
     constructor(
-        baseURL: string = "https://la-hacks-api.vercel.app/api",
+        baseURL: string = "http://localhost:8000/api", // Local development URL
         cacheExpirationTimeMs?: number
     ) {
         this.client = axios.create({
@@ -23,12 +23,13 @@ class RobloxAPIClient {
             this.cacheExpirationTime = cacheExpirationTimeMs;
         }
 
-        // Load cached data from localStorage on init
-        this.loadCacheFromStorage();
+        // Attempt to load cache only if in a browser environment
+        if (typeof window !== 'undefined') {
+            this.loadCacheFromStorage();
+        }
 
-        // Add request interceptor for logging
+        // Add request interceptor for logging (optional, consider removing in production for less noise)
         this.client.interceptors.request.use(config => {
-            // Log requests
             console.log('Backend Proxy Request:', config.method?.toUpperCase(), config.url, config.params);
             return config;
         }, error => {
@@ -36,9 +37,8 @@ class RobloxAPIClient {
             return Promise.reject(error);
         });
 
-        // Add response interceptor for logging
+        // Add response interceptor for logging (optional, consider removing in production)
         this.client.interceptors.response.use(response => {
-            // Log responses from your backend proxy
             console.log('Backend Proxy Response:', response.status, response.data);
             return response;
         }, error => {
@@ -56,8 +56,15 @@ class RobloxAPIClient {
         return `/roblox-avatar`;
     }
 
-    // save cache to storage
+    /**
+     * Saves the current avatar cache to localStorage, only if in a browser environment.
+     */
     private saveCacheToStorage(): void {
+        // Check if localStorage is available (i.e., running in a browser)
+        if (typeof window === 'undefined') {
+            return; // Do nothing if not in a browser
+        }
+
         try {
             const cacheData: Record<string, CacheEntry> = {};
             this.avatarCache.forEach((entry, key) => {
@@ -69,21 +76,39 @@ class RobloxAPIClient {
         }
     }
 
-    // load cache from storage
+    /**
+     * Loads the avatar cache from localStorage, only if in a browser environment.
+     */
     private loadCacheFromStorage(): void {
+        // Check if localStorage is available (i.e., running in a browser)
+        if (typeof window === 'undefined') {
+            return; // Do nothing if not in a browser
+        }
+
         try {
             const cacheData = localStorage.getItem('robloxAvatarCache');
             if (cacheData) {
                 const parsedCache = JSON.parse(cacheData) as Record<string, CacheEntry>;
+                const now = Date.now();
                 Object.entries(parsedCache).forEach(([key, entry]) => {
-                    // Only add non-expired entries to the cache
-                    if (Date.now() - entry.timestamp < this.cacheExpirationTime) {
+                    // Only add non-expired entries to the in-memory cache
+                    if (now - entry.timestamp < this.cacheExpirationTime) {
                         this.avatarCache.set(key, entry);
+                    } else {
+                        // Optional: Log expired entry removal during load
+                        console.log(`Removing expired cache entry for user ${key} during load.`);
                     }
                 });
+                console.log(`Loaded ${this.avatarCache.size} valid entries from localStorage cache.`);
             }
         } catch (error) {
-            console.error('Failed to load avatar cache from localStorage:', error);
+            console.error('Failed to load or parse avatar cache from localStorage:', error);
+            // Optional: Clear potentially corrupted cache item
+            try {
+                localStorage.removeItem('robloxAvatarCache');
+            } catch (removeError) {
+                console.error('Failed to remove potentially corrupted avatar cache:', removeError);
+            }
         }
     }
 
@@ -101,34 +126,30 @@ class RobloxAPIClient {
      * @returns A promise that resolves with the image URL string, or null if not found/error.
      */
     async getAvatarHeadshotUrl(userId: number | string | null | undefined): Promise<string | null> {
-        // Basic check for valid userId before making the request
         if (userId === null || userId === undefined || String(userId).trim() === '' || Number(userId) <= 0) {
             console.warn(`Attempted to fetch avatar for invalid user ID: ${userId}`);
-            return null; // Don't make the request for invalid IDs
+            return null;
         }
 
-        // Ensure userId is treated as a string for the API call and cache key
         const userIdString = String(userId);
 
-        // Check if we have a valid cached entry
+        // Check in-memory cache first
         const cachedEntry = this.avatarCache.get(userIdString);
         if (cachedEntry && this.isCacheValid(cachedEntry)) {
-            console.log(`Using cached avatar URL for user ${userIdString}: ${cachedEntry.url}`);
+            // console.log(`Using cached avatar URL for user ${userIdString}`); // Less verbose logging
             return cachedEntry.url;
         }
 
-        // Check if there's a pending request for this user ID
+        // Check for pending requests (request coalescing)
         if (this.pendingRequests.has(userIdString)) {
-            console.log(`Reusing in-flight request for user ${userIdString}`);
-            // Return the existing promise
+            // console.log(`Reusing in-flight request for user ${userIdString}`); // Less verbose logging
             return this.pendingRequests.get(userIdString)!;
         }
 
-        // Create a new request promise and store it
+        // Create and store the new request promise
         const requestPromise = this.fetchAvatarUrl(userIdString)
             .finally(() => {
-                // Ensure the pending request is removed once it settles (resolves or rejects)
-                this.pendingRequests.delete(userIdString);
+                this.pendingRequests.delete(userIdString); // Remove from pending when done
             });
 
         this.pendingRequests.set(userIdString, requestPromise);
@@ -136,77 +157,74 @@ class RobloxAPIClient {
         return requestPromise;
     }
 
-
     /**
-     * Actual implementation of fetching avatar URL from backend
+     * Actual implementation of fetching avatar URL from the backend proxy.
+     * Updates the cache on success.
      */
     private async fetchAvatarUrl(userIdString: string): Promise<string | null> {
+        console.log(`Fetching avatar URL for user ${userIdString} from backend proxy...`);
         try {
-            // Make the GET request to your backend proxy endpoint
             const response = await this.client.get(this.getAvatarHeadshotEndpointUrl(), {
-                params: {
-                    userId: userIdString,
-                }
+                params: { userId: userIdString }
             });
 
-            // Check if the request to your backend was successful and data is present
             if (response.status === 200 && response.data && typeof response.data.imageUrl === 'string') {
                 const imageUrl = response.data.imageUrl;
-                console.log(`Workspaceed imageUrl from backend proxy for user ${userIdString}: ${imageUrl}`);
+                console.log(`Fetched imageUrl from backend proxy for user ${userIdString}`);
 
-                // Cache the successful result
+                // Update in-memory cache
                 const newEntry: CacheEntry = {
                     url: imageUrl,
                     timestamp: Date.now()
                 };
                 this.avatarCache.set(userIdString, newEntry);
 
-                // Save updated cache to localStorage
+                // Save updated cache to localStorage (will check for browser env inside)
                 this.saveCacheToStorage();
 
                 return imageUrl;
             } else {
-                // Handle cases where backend returns 200 but data is not as expected
-                console.warn('Unexpected successful response structure from backend proxy:', response.data);
-                
+                console.warn(`Unexpected successful response structure from backend proxy for user ${userIdString}:`, response.data);
                 return null;
             }
         } catch (error: any) {
-            if (error.response && error.response.status === 404) {
-             
-                console.log(`Avatar not found for user ID ${userIdString} (404 from proxy: ${error.response.data?.error || 'Not Found'}).`);
-               
+            // Log specific errors based on response status if available
+            if (error.response) {
+                if (error.response.status === 404) {
+                    console.log(`Avatar not found for user ID ${userIdString} (404 from proxy: ${error.response.data?.error || 'Not Found'}).`);
+                } else {
+                    console.error(`Error fetching avatar from proxy for user ID ${userIdString} - Status ${error.response.status}:`,
+                        error.response.data?.error || error.message);
+                }
             } else {
-
-                console.error(`Error fetching avatar headshot from backend proxy for user ID ${userIdString}:`,
-                    error.response?.status, // Log status if available
-                    error.response?.data?.error || error.message); // Log specific error message or general message
+                // Network error or other issue without a response object
+                console.error(`Network or other error fetching avatar from proxy for user ID ${userIdString}:`, error.message);
             }
-
-            // Return null in all error cases, indicating the URL could not be retrieved
-            return null;
+            return null; // Return null on any error
         }
     }
 
     /**
-     * Clear the entire cache or entries for a specific user
-     * @param userId Optional. If provided, clears cache only for that user.
-     */
+    * Clear the entire cache or entries for a specific user
+    * @param userId Optional. If provided, clears cache only for that user.
+    */
     clearAvatarCache(userId?: string | number): void {
         if (userId !== undefined) {
-            // Clear cache for specific user
             const userIdString = String(userId);
+            console.log(`Clearing avatar cache for user ${userIdString}`);
             this.avatarCache.delete(userIdString);
         } else {
-            // Clear entire cache
+            console.log('Clearing entire avatar cache');
             this.avatarCache.clear();
         }
-        // Update localStorage
+        // Update localStorage (will check for browser env inside)
         this.saveCacheToStorage();
     }
 }
 
 // Export a single instance of the client
+// This instance will be created when the module loads,
+// but the constructor now safely handles server-side execution regarding localStorage.
 export const robloxApi = new RobloxAPIClient();
 
 // You can still export the class itself if needed elsewhere
