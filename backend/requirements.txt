@@ -1,4 +1,8 @@
-Flask==3.1.0
-flask-cors==4.0.0
-google-generativeai==0.5.0
-supabase==2.15.0
+fastapi
+uvicorn
+python-dotenv
+google-generativeai
+supabase
+requests
+pydantic
+python-multipart

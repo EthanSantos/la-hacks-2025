@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "NEXT_PUBLIC_API_URL=http://localhost:8000 next dev",
+    "dev:prod": "NEXT_PUBLIC_API_URL=https://la-hacks-api.vercel.app next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

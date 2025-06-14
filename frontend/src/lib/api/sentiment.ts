@@ -6,7 +6,7 @@ class SentimentAnalysisClient {
     private client: AxiosInstance;
 
     constructor(
-        baseURL: string = "https://la-hacks-api.vercel.app/api",
+        baseURL: string = "http://localhost:8000/api",
         apiKey?: string
     ) {
         // Create axios instance with base configuration
@@ -162,9 +162,11 @@ class SentimentAnalysisClient {
     }
 }
 
+import { getApiUrl } from '@/config/api';
+
 // Create and export a singleton instance
 export const sentimentApi = new SentimentAnalysisClient(
-    process.env.NEXT_PUBLIC_API_BASE_URL,
+    `${getApiUrl()}/api`,
     process.env.NEXT_PUBLIC_ROBLOX_API_KEY
 );
 

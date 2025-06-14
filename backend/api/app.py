@@ -1,6 +1,10 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException, Request, Depends, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from typing import Optional, Dict, Any, List
 import os
+from pathlib import Path
 import google.generativeai as genai
 import random
 import json
@@ -8,9 +12,25 @@ import re
 from supabase import create_client, Client
 from datetime import datetime
 import requests
+import logging
+from dotenv import load_dotenv
 
-app = Flask(__name__)
-CORS(app)
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Sentiment Analysis API")
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # API Keys
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
@@ -25,46 +45,60 @@ genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Initialize Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+else:
+    supabase = None
+    logger.warning("Supabase not configured - database operations will be skipped")
 
 ROBLOX_THUMBNAILS_API_URL = "https://thumbnails.roblox.com/v1/users/avatar-headshot"
 
-print("Server starting up with configuration...")
-print(f"Google API Key configured: {'Yes' if GOOGLE_API_KEY else 'No'}")
-print(f"Roblox API Key configured: {'Yes' if ROBLOX_API_KEY else 'No'}")
-print(f"Supabase configured: {'Yes' if SUPABASE_URL and SUPABASE_KEY else 'No'}")
-print("Gemini model initialized")
+logger.info("Server starting up with configuration...")
+logger.info(f"Google API Key configured: {'Yes' if GOOGLE_API_KEY else 'No'}")
+logger.info(f"Roblox API Key configured: {'Yes' if ROBLOX_API_KEY else 'No'}")
+logger.info(f"Supabase configured: {'Yes' if SUPABASE_URL and SUPABASE_KEY else 'No'}")
+logger.info("Gemini model initialized")
 
-@app.route('/')
-def home():
-    print("Home endpoint accessed")
-    return jsonify({
-        "message": "Sentiment Analysis API is running",
-        "status": "success"
-    })
+# Pydantic models for request/response
+class AnalyzeRequest(BaseModel):
+    message: str
+    message_id: str
+    player_id: Optional[int] = None
+    player_name: Optional[str] = None
 
-@app.route('/api/analyze', methods=['POST'])
-def analyze_message():
-    
+class AnalyzeResponse(BaseModel):
+    player_id: int
+    player_name: str
+    message_id: str
+    message: str
+    sentiment_score: int
+
+# Dependency for API key validation
+async def verify_api_key(request: Request):
     if ROBLOX_API_KEY:
-        request_api_key = request.headers.get('X-API-Key')
-        print(f"API Key authentication: {'Success' if request_api_key == ROBLOX_API_KEY else 'Failed'}")
-        if not request_api_key or request_api_key != ROBLOX_API_KEY:
-            print("Unauthorized access attempt - invalid API key")
-            return jsonify({"error": "Unauthorized"}), 401
-    
-    if not request.json or 'message' not in request.json:
-        print("Bad request - no message provided")
-        return jsonify({"error": "No message provided"}), 400
-        
-    if 'message_id' not in request.json:
-        print("Bad request - no message_id provided")
-        return jsonify({"error": "No message_id provided"}), 400
-    
-    user_message = request.json['message']
-    message_id = request.json['message_id']
-    player_id = request.json.get('player_id')
-    player_name = request.json.get('player_name')
+        api_key = request.headers.get('X-API-Key')
+        logger.info(f"API Key authentication: {'Success' if api_key == ROBLOX_API_KEY else 'Failed'}")
+        if not api_key or api_key != ROBLOX_API_KEY:
+            logger.info("Unauthorized access attempt - invalid API key")
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+@app.get("/")
+async def home():
+    logger.info("Home endpoint accessed")
+    return {
+        "message": "BloomAI API is running",
+        "status": "success"
+    }
+
+@app.post("/api/analyze", response_model=AnalyzeResponse)
+async def analyze_message(
+    request_data: AnalyzeRequest,
+    _: None = Depends(verify_api_key)
+):
+    user_message = request_data.message
+    message_id = request_data.message_id
+    player_id = request_data.player_id
+    player_name = request_data.player_name
     
     # Only use random values if no player_id or player_name was provided
     if player_id is None:
@@ -72,11 +106,10 @@ def analyze_message():
     if player_name is None:
         player_name = f"Player{random.randint(1, 999)}"
     
-    print(f"Processing request: Player ID: {player_id}, Player Name: {player_name}")
-    print(f"Message to analyze: {user_message}")
+    logger.info(f"Processing request: Player ID: {player_id}, Player Name: {player_name}")
+    logger.info(f"Message to analyze: {user_message}")
     
     try:
-        
         prompt = f"""
         You are a precise sentiment analysis tool. Evaluate the sentiment expressed in the user message below.
 
@@ -101,26 +134,26 @@ def analyze_message():
         }}
         """
         
-        print("Sending request to Gemini API...")
+        logger.info("Sending request to Gemini API...")
         response = model.generate_content(prompt)
         response_text = response.text
-        print(f"Received response from Gemini: {response_text}")
+        logger.info(f"Received response from Gemini: {response_text}")
 
         try:
             json_match = re.search(r'({[\s\S]*})', response_text)
             if json_match:
                 json_str = json_match.group(1)
-                print(f"Extracted JSON string: {json_str}")
+                logger.info(f"Extracted JSON string: {json_str}")
                 gemini_data = json.loads(json_str)
             else:
                 gemini_data = json.loads(response_text)
                 
             sentiment_score = gemini_data.get("sentiment_score", 0)
-            print(f"Parsed sentiment score: {sentiment_score}")
+            logger.info(f"Parsed sentiment score: {sentiment_score}")
         except Exception as json_error:
-            print(f"JSON parsing error: {json_error}")
+            logger.error(f"JSON parsing error: {json_error}")
             sentiment_score = 0
-            print("Using fallback sentiment values due to parsing error")
+            logger.info("Using fallback sentiment values due to parsing error")
         
         # Generate a response
         result = {
@@ -131,45 +164,45 @@ def analyze_message():
             "sentiment_score": sentiment_score
         }
         
-        # store the data in supabase
+        # Store the data in supabase
         try:
-            # check if the player exists in the players table
+            # Check if the player exists in the players table
             player_data = {
                 "player_id": player_id,
                 "player_name": player_name,
-                "last_seen": datetime.now().isoformat()
+                "last_seen": datetime.utcnow().isoformat() + "Z"
             }
             
             player_response = supabase.table('players').upsert(player_data).execute()
-            print(f"Player data stored/updated in Supabase")
+            logger.info(f"Player data stored/updated in Supabase")
             
-            # store the message data
+            # Store the message data
             message_data = {
                 "message_id": message_id,
                 "player_id": player_id,
                 "message": user_message,
                 "sentiment_score": sentiment_score,
-                "created_at": datetime.now().isoformat()
+                "created_at": datetime.utcnow().isoformat() + "Z"
             }
             
             message_response = supabase.table('messages').insert(message_data).execute()
-            print(f"Message data stored in Supabase")
+            logger.info(f"Message data stored in Supabase")
             
             # Update player sentiment score after message is stored
             try:
                 supabase.rpc('update_player_sentiment_score').execute()
-                print("Player sentiment score updated")
+                logger.info("Player sentiment score updated")
             except Exception as score_error:
-                print(f"Error updating player sentiment score: {score_error}")
+                logger.error(f"Error updating player sentiment score: {score_error}")
         
         except Exception as db_error:
-            print(f"Supabase storage error: {db_error}")
+            logger.error(f"Supabase storage error: {db_error}")
         
-        print(f"Returning result: {result}")
-        return jsonify(result)
+        logger.info(f"Returning result: {result}")
+        return result
     
     except Exception as e:
-        print(f"Error in sentiment analysis: {e}")
+        logger.error(f"Error in sentiment analysis: {e}")
         fallback_result = {
             "player_id": player_id,
             "player_name": player_name,
@@ -178,76 +211,70 @@ def analyze_message():
             "sentiment_score": 0
         }
         
-        print(f"Returning fallback result: {fallback_result}")
-        return jsonify(fallback_result)
+        logger.info(f"Returning fallback result: {fallback_result}")
+        return fallback_result
 
-@app.route('/api/players', methods=['GET'])
-def get_players():
+@app.get("/api/players")
+async def get_players():
     try:
         response = supabase.table('players').select('*').execute()
-        return jsonify(response.data)
+        return response.data
     except Exception as e:
-        print(f"Error fetching players: {e}")
-        return jsonify({"error": "Failed to fetch players"}), 500
+        logger.error(f"Error fetching players: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch players")
 
-@app.route('/api/messages', methods=['GET'])
-def get_messages():
+@app.get("/api/messages")
+async def get_messages(
+    player_id: Optional[str] = Query(None),
+    limit: int = Query(100)
+):
     try:
-        # get optional query params for filtering
-        player_id = request.args.get('player_id')
-        limit = request.args.get('limit', 100)
-        
         query = supabase.table('messages').select('*').order('created_at', desc=True).limit(limit)
         
         if player_id:
             query = query.eq('player_id', player_id)
         
         response = query.execute()
-        return jsonify(response.data)
+        return response.data
     except Exception as e:
-        print(f"Error fetching messages: {e}")
-        return jsonify({"error": "Failed to fetch messages"}), 500
+        logger.error(f"Error fetching messages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch messages")
 
-@app.route('/api/live', methods=['GET'])
-def get_live_messages():
+@app.get("/api/live")
+async def get_live_messages(limit: int = Query(20)):
     try:
-        limit = int(request.args.get('limit', 20))
-        
-        # created a sql function to handle this easily and more efficiently
+        # Created a sql function to handle this easily and more efficiently
         messages_response = supabase.rpc('get_live_messages', {'p_limit': limit}).execute()
         
-        return jsonify(messages_response.data)
+        return messages_response.data
     except Exception as e:
-        print(f"Error fetching live messages: {e}")
-        return jsonify({"error": f"Failed to fetch live messages: {str(e)}"}), 500
-    
-@app.route('/api/roblox-avatar', methods=['GET'])
-def get_roblox_avatar():
+        logger.error(f"Error fetching live messages: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch live messages: {str(e)}")
+
+@app.get("/api/roblox-avatar")
+async def get_roblox_avatar(userId: Optional[str] = Query(None)):
     """
     Proxies requests to the Roblox Thumbnails API to fetch user avatar headshots.
     Takes 'userId' as a query parameter.
     """
-    user_id = request.args.get('userId')
-
-    if not user_id:
-        print("Roblox avatar proxy: Missing userId parameter")
-        return jsonify({"error": "Missing userId parameter"}), 400
+    if not userId:
+        logger.info("Roblox avatar proxy: Missing userId parameter")
+        raise HTTPException(status_code=400, detail="Missing userId parameter")
 
     try:
-        user_id_int = int(user_id)
+        user_id_int = int(userId)
         if user_id_int <= 0:
-             print(f"Roblox avatar proxy: Invalid userId format (non-positive): {user_id}")
-             return jsonify({"error": "Invalid userId format"}), 400
+            logger.info(f"Roblox avatar proxy: Invalid userId format (non-positive): {userId}")
+            raise HTTPException(status_code=400, detail="Invalid userId format")
     except ValueError:
-        print(f"Roblox avatar proxy: Invalid userId format (not an integer): {user_id}")
-        return jsonify({"error": "Invalid userId format"}), 400
+        logger.info(f"Roblox avatar proxy: Invalid userId format (not an integer): {userId}")
+        raise HTTPException(status_code=400, detail="Invalid userId format")
 
-
-    print(f"Roblox avatar proxy: Fetching avatar for user ID: {user_id}")
+    logger.info(f"Roblox avatar proxy: Fetching avatar for user ID: {userId}")
 
     # Parameters for the Roblox API request
     roblox_params = {
-        "userIds": user_id, # Pass the single user ID
+        "userIds": userId,  # Pass the single user ID
         "size": "150x150",  # Desired size
         "format": "Png"     # Desired format
     }
@@ -255,46 +282,46 @@ def get_roblox_avatar():
     try:
         # Make the request to the actual Roblox Thumbnails API
         roblox_response = requests.get(ROBLOX_THUMBNAILS_API_URL, params=roblox_params)
-        roblox_response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+        roblox_response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
 
         roblox_data = roblox_response.json()
-        print(f"Roblox avatar proxy: Received data from Roblox API: {roblox_data}")
+        logger.info(f"Roblox avatar proxy: Received data from Roblox API: {roblox_data}")
 
         # Parse the response to find the image URL
         # The response structure is { "data": [ { "targetId": ..., "state": ..., "imageUrl": ... } ] }
         image_url = None
         if roblox_data and 'data' in roblox_data and isinstance(roblox_data['data'], list):
             # Find the item matching the requested user ID
-            user_data = next((item for item in roblox_data['data'] if str(item.get('targetId')) == user_id), None)
+            user_data = next((item for item in roblox_data['data'] if str(item.get('targetId')) == userId), None)
             if user_data and 'imageUrl' in user_data:
                 image_url = user_data['imageUrl']
-                print(f"Roblox avatar proxy: Found imageUrl: {image_url}")
+                logger.info(f"Roblox avatar proxy: Found imageUrl: {image_url}")
             else:
-                 print(f"Roblox avatar proxy: imageUrl not found in Roblox response for user ID: {user_id}")
-
+                logger.info(f"Roblox avatar proxy: imageUrl not found in Roblox response for user ID: {userId}")
 
         if image_url:
             # Return the image URL to the frontend
-            return jsonify({"imageUrl": image_url})
+            return {"imageUrl": image_url}
         else:
             # Return a 404 if the image URL was not found for the user
-            print(f"Roblox avatar proxy: Avatar not found for user ID: {user_id}")
-            return jsonify({"error": "Avatar not found"}), 404
+            logger.info(f"Roblox avatar proxy: Avatar not found for user ID: {userId}")
+            raise HTTPException(status_code=404, detail="Avatar not found")
 
     except requests.exceptions.RequestException as e:
         # Handle errors during the request to Roblox API
-        print(f"Roblox avatar proxy: Error fetching from Roblox API: {e}")
-        return jsonify({"error": "Failed to fetch avatar from Roblox"}), 500
+        logger.error(f"Roblox avatar proxy: Error fetching from Roblox API: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch avatar from Roblox")
+    except HTTPException:
+        # Re-raise HTTPExceptions
+        raise
     except Exception as e:
         # Handle any other unexpected errors
-        print(f"Roblox avatar proxy: An unexpected error occurred: {e}")
-        return jsonify({"error": "An internal error occurred"}), 500
+        logger.error(f"Roblox avatar proxy: An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail="An internal error occurred")
 
-@app.route('/api/top-players', methods=['GET'])
-def get_top_players():
+@app.get("/api/top-players")
+async def get_top_players(limit: int = Query(10)):
     try:
-        limit = int(request.args.get('limit', 10))
-        
         response = supabase.rpc('get_top_players_by_sentiment', {'p_limit': limit}).execute()
         
         # Format the response to ensure we have the required fields
@@ -307,39 +334,43 @@ def get_top_players():
                 "message_count": player["message_count"]
             })
         
-        return jsonify(formatted_data)
+        return formatted_data
     except Exception as e:
-        print(f"Error fetching top players: {e}")
-        return jsonify({"error": f"Failed to fetch top players: {str(e)}"}), 500
-    
-@app.route('/api/analytics/all-time/sentiment-trend', methods=['GET'])
-def get_sentiment_trend_data_all_time():
+        logger.error(f"Error fetching top players: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch top players: {str(e)}")
+
+@app.get("/api/analytics/all-time/sentiment-trend")
+async def get_sentiment_trend_data_all_time(interval: str = Query('month')):
     try:
-        interval = request.args.get('interval', 'month') 
         if interval not in ['day', 'hour', 'week', 'month', 'year']:
-            return jsonify({"error": "Invalid interval unit"}), 400
+            raise HTTPException(status_code=400, detail="Invalid interval unit")
 
         params = {'interval_unit': interval}
         # Call the all_time version of the function
         response = supabase.rpc('get_sentiment_trend_all_time', params).execute()
 
         if hasattr(response, 'data'):
-             print(f"Fetched all-time sentiment trend data for interval: {interval}")
-             return jsonify(response.data)
+            logger.info(f"Fetched all-time sentiment trend data for interval: {interval}")
+            return response.data
         else:
-             print(f"Error in Supabase response for all-time sentiment trend: {response}")
-             return jsonify({"error": "Failed to fetch all-time sentiment trend data", "details": str(response)}), 500
+            logger.error(f"Error in Supabase response for all-time sentiment trend: {response}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to fetch all-time sentiment trend data: {str(response)}"
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching all-time sentiment trend: {e}")
-        return jsonify({"error": f"Failed to fetch all-time sentiment trend: {str(e)}"}), 500
+        logger.error(f"Error fetching all-time sentiment trend: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch all-time sentiment trend: {str(e)}")
 
-@app.route('/api/analytics/all-time/sentiment-distribution', methods=['GET'])
-def get_sentiment_distribution_data_all_time():
+@app.get("/api/analytics/all-time/sentiment-distribution")
+async def get_sentiment_distribution_data_all_time(
+    positive_threshold: int = Query(30),
+    negative_threshold: int = Query(-30)
+):
     try:
-        positive_threshold = request.args.get('positive_threshold', 30, type=int)
-        negative_threshold = request.args.get('negative_threshold', -30, type=int)
-
         params = {
             'positive_threshold': positive_threshold,
             'negative_threshold': negative_threshold
@@ -348,34 +379,41 @@ def get_sentiment_distribution_data_all_time():
         response = supabase.rpc('get_sentiment_distribution_all_time', params).execute()
 
         if hasattr(response, 'data'):
-            print(f"Fetched all-time sentiment distribution data")
-            return jsonify(response.data)
+            logger.info(f"Fetched all-time sentiment distribution data")
+            return response.data
         else:
-            print(f"Error in Supabase response for all-time sentiment distribution: {response}")
-            return jsonify({"error": "Failed to fetch all-time sentiment distribution data", "details": str(response)}), 500
+            logger.error(f"Error in Supabase response for all-time sentiment distribution: {response}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to fetch all-time sentiment distribution data: {str(response)}"
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching all-time sentiment distribution: {e}")
-        return jsonify({"error": f"Failed to fetch all-time sentiment distribution: {str(e)}"}), 500
+        logger.error(f"Error fetching all-time sentiment distribution: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch all-time sentiment distribution: {str(e)}")
 
-@app.route('/api/analytics/all-time/overall-stats', methods=['GET'])
-def get_overall_stats_data_all_time():
+@app.get("/api/analytics/all-time/overall-stats")
+async def get_overall_stats_data_all_time():
     try:
         # Call the all_time version of the function (no parameters needed)
         response = supabase.rpc('get_overall_analytics_stats_all_time', {}).execute()
 
         if hasattr(response, 'data'):
-            print(f"Fetched all-time overall stats")
+            logger.info(f"Fetched all-time overall stats")
             data_to_return = response.data[0] if response.data and isinstance(response.data, list) else response.data
-            return jsonify(data_to_return)
+            return data_to_return
         else:
-            print(f"Error in Supabase response for all-time overall stats: {response}")
-            return jsonify({"error": "Failed to fetch all-time overall stats", "details": str(response)}), 500
+            logger.error(f"Error in Supabase response for all-time overall stats: {response}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to fetch all-time overall stats: {str(response)}"
+            )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Error fetching all-time overall stats: {e}")
-        return jsonify({"error": f"Failed to fetch all-time overall stats: {str(e)}"}), 500
+        logger.error(f"Error fetching all-time overall stats: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch all-time overall stats: {str(e)}")
 
-if __name__ == '__main__':
-    print("Starting Flask development server...")
-    app.run(debug=True)
