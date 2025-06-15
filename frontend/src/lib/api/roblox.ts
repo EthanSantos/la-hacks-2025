@@ -12,38 +12,35 @@ class RobloxAPIClient {
     private pendingRequests: Map<string, Promise<string | null>> = new Map();
     private cacheExpirationTime: number = 60 * 60 * 1000; // 1 hour default
 
-    constructor(
-        baseURL?: string,
-        cacheExpirationTimeMs?: number
-    ) {
+    constructor(cacheExpirationTimeMs?: number) {
         this.client = axios.create({
-            baseURL: baseURL || `${getApiUrl()}/api`,
+            baseURL: `${getApiUrl()}/api`,
         });
 
         if (cacheExpirationTimeMs) {
             this.cacheExpirationTime = cacheExpirationTimeMs;
         }
 
-        // Attempt to load cache only if in a browser environment
+        // Initialize cache in browser environment
         if (typeof window !== 'undefined') {
             this.loadCacheFromStorage();
         }
 
-        // Add request interceptor for logging (optional, consider removing in production for less noise)
+        // Add request interceptor for logging
         this.client.interceptors.request.use(config => {
-            console.log('Backend Proxy Request:', config.method?.toUpperCase(), config.url, config.params);
+            console.log('Roblox API Request:', config.method?.toUpperCase(), config.url, config.params);
             return config;
         }, error => {
-            console.error('Backend Proxy Request Error:', error);
+            console.error('Roblox API Request Error:', error);
             return Promise.reject(error);
         });
 
-        // Add response interceptor for logging (optional, consider removing in production)
+        // Add response interceptor for logging
         this.client.interceptors.response.use(response => {
-            console.log('Backend Proxy Response:', response.status, response.data);
+            console.log('Roblox API Response:', response.status, response.data);
             return response;
         }, error => {
-            console.error('Backend Proxy Response Error:', error.response?.status, error.response?.data || error.message);
+            console.error('Roblox API Response Error:', error.response?.status, error.response?.data || error.message);
             return Promise.reject(error);
         });
     }
@@ -223,10 +220,8 @@ class RobloxAPIClient {
     }
 }
 
-// Export a single instance of the client
-// This instance will be created when the module loads,
-// but the constructor now safely handles server-side execution regarding localStorage.
+// Create and export a singleton instance
 export const robloxApi = new RobloxAPIClient();
 
-// You can still export the class itself if needed elsewhere
+// Export the class for custom instantiation if needed
 export { RobloxAPIClient };

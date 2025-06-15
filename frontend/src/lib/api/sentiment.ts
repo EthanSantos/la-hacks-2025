@@ -1,20 +1,16 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
 import { Player, Message, SentimentAnalysisRequest, SentimentAnalysisResponse, TopPlayer, OverallStats, SentimentTrendPoint, SentimentDistributionSlice } from '@/types/sentiment';
+import { getApiUrl } from '@/config/api';
 
 class SentimentAnalysisClient {
     private client: AxiosInstance;
 
-    constructor(
-        baseURL: string = "http://localhost:8000/api",
-        apiKey?: string
-    ) {
+    constructor(apiKey?: string) {
         // Create axios instance with base configuration
         this.client = axios.create({
-            baseURL,
-            headers: apiKey
-                ? { 'X-API-Key': apiKey }
-                : {}
+            baseURL: `${getApiUrl()}/api`,
+            headers: apiKey ? { 'X-API-Key': apiKey } : {}
         });
 
         // Add request interceptor for logging (optional)
@@ -73,8 +69,6 @@ class SentimentAnalysisClient {
             return null;
         }
     }
-
-
 
     /**
      * Moderate a message only (no sentiment analysis)
@@ -208,11 +202,8 @@ class SentimentAnalysisClient {
     }
 }
 
-import { getApiUrl } from '@/config/api';
-
 // Create and export a singleton instance
 export const sentimentApi = new SentimentAnalysisClient(
-    `${getApiUrl()}/api`,
     process.env.NEXT_PUBLIC_ROBLOX_API_KEY
 );
 
