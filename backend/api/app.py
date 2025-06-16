@@ -19,6 +19,7 @@ import asyncio
 # Import the new AI service
 from services.chat_service import ChatService
 from models.chat import ChatMessage
+from services.ai_service import ai_service
 
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
