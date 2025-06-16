@@ -486,3 +486,84 @@ async def get_overall_stats_data_all_time():
         logger.error(f"Error fetching all-time overall stats: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch all-time overall stats: {str(e)}")
 
+class ServiceStatus(BaseModel):
+    status: str
+    details: Optional[Dict[str, Any]] = None
+
+class HealthResponse(BaseModel):
+    status: str
+    version: str
+    timestamp: str
+    services: Dict[str, ServiceStatus]
+
+def check_supabase_connection() -> ServiceStatus:
+    """Check if Supabase connection is working"""
+    try:
+        if not supabase:
+            return ServiceStatus(status="not_configured")
+        
+        # Try a simple query
+        supabase.table('players').select("count").limit(1).execute()
+        return ServiceStatus(status="healthy")
+    except Exception as e:
+        logger.error(f"Supabase health check failed: {e}")
+        return ServiceStatus(
+            status="unhealthy",
+            details={"error": str(e)}
+        )
+
+def check_ai_model() -> ServiceStatus:
+    """Check if Gemini AI model is working"""
+    try:
+        if not GOOGLE_API_KEY:
+            return ServiceStatus(status="not_configured")
+        
+        # Try a simple generation
+        response = model.generate_content("test")
+        if response:
+            return ServiceStatus(status="healthy")
+        return ServiceStatus(status="unhealthy")
+    except Exception as e:
+        logger.error(f"AI model health check failed: {e}")
+        return ServiceStatus(
+            status="unhealthy",
+            details={"error": str(e)}
+        )
+
+def check_roblox_api() -> ServiceStatus:
+    """Check if Roblox API key is configured"""
+    if not ROBLOX_API_KEY:
+        return ServiceStatus(status="not_configured")
+    return ServiceStatus(status="healthy")
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    """
+    Comprehensive health check endpoint that verifies all critical services.
+    Returns the status of each service and overall system health.
+    """
+    logger.info("Health check requested")
+    
+    # Check all services
+    services = {
+        "database": check_supabase_connection(),
+        "ai_model": check_ai_model(),
+        "roblox_api": check_roblox_api()
+    }
+    
+    # Determine overall status
+    overall_status = "healthy"
+    for service_status in services.values():
+        if service_status.status == "unhealthy":
+            overall_status = "unhealthy"
+            break
+        elif service_status.status == "not_configured":
+            overall_status = "degraded"
+    
+    return HealthResponse(
+        status=overall_status,
+        version="1.0.0",
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        services=services
+    )
+
