@@ -1,9 +1,53 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@font-face {
+  font-family: 'ClashGrotesk';
+  src: url('/fonts/ClashGrotesk-Variable.woff2') format('woff2-variations');
+  font-weight: 200 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Uncut Sans';
+  src: url('/fonts/uncut/woff2/UncutSans-Regular.woff2') format('woff2'),
+       url('/fonts/uncut/woff/UncutSans-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Uncut Sans';
+  src: url('/fonts/uncut/woff2/UncutSans-Medium.woff2') format('woff2'),
+       url('/fonts/uncut/woff/UncutSans-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Uncut Sans';
+  src: url('/fonts/uncut/woff2/UncutSans-Semibold.woff2') format('woff2'),
+       url('/fonts/uncut/woff/UncutSans-Semibold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Uncut Sans';
+  src: url('/fonts/uncut/woff2/UncutSans-Bold.woff2') format('woff2'),
+       url('/fonts/uncut/woff/UncutSans-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  --font-sans: 'Uncut Sans', system-ui, -apple-system, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -115,7 +159,27 @@
     border-color: var(--border);
     outline-color: color-mix(in srgb, var(--ring) 50%, transparent);
   }
+  
+  html {
+    font-family: 'Uncut Sans', system-ui, -apple-system, sans-serif;
+  }
+  
   body {
     @apply bg-background text-foreground;
+    font-family: 'Uncut Sans', system-ui, -apple-system, sans-serif;
+    font-weight: normal;
+    font-style: normal;
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+  }
+  
+  /* Ensure all text elements use the custom font */
+  h1, h2, h3, h4, h5, h6, p, span, div, button, input, textarea, label, a {
+    font-family: 'Uncut Sans', system-ui, -apple-system, sans-serif;
+  }
+  
+  /* Override any Tailwind font classes to use our custom font */
+  .font-sans {
+    font-family: 'Uncut Sans', system-ui, -apple-system, sans-serif;
   }
 }

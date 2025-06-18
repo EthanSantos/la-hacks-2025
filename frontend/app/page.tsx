@@ -6,7 +6,6 @@ import SentimentAnalyzer from "@/components/sentiment-analyzer/SentimentAnalyzer
 import { useLiveMessages } from '@/hooks/useLiveMessages';
 import { Card, CardContent } from '@/components/ui/card';
 import { createClient } from '@supabase/supabase-js';
-import SideNavbar from '@/components/Navbar'; // Import the new SideNavbar component
 
 // Supabase client initialization
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -138,8 +137,6 @@ export default function HomePage() {
 
   return (
     <div className="h-screen flex overflow-hidden">
-      {/* Side Navbar */}
-      <SideNavbar />
       
       {/* Content container */}
       <div className="flex-1 flex flex-col overflow-hidden">

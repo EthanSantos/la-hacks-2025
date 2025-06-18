@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trophy, MessageSquare, TrendingUp, BarChart2, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import SideNavbar from '@/components/Navbar'; // Import the SideNavbar component
 
 const LeaderboardPage = () => {
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
@@ -49,8 +48,6 @@ const LeaderboardPage = () => {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <SideNavbar />
       
       {/* Main Content */}
       <div className="flex-1 overflow-auto">

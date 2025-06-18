@@ -8,8 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button'; // Import Button for Retry
 // Import the Chart component from react-google-charts
 import { Chart } from "react-google-charts";
-// --- Import the SideNavbar ---
-import SideNavbar from '@/components/Navbar'; // Adjust path if needed
 
 // --- Date Formatting ---
 import { format } from 'date-fns';
@@ -209,7 +207,6 @@ export default function AnalyticsPage() {
   // --- Render Function ---
   return (
     <div className="flex h-screen bg-gray-100 dark:bg-gray-950"> {/* Slightly lighter/darker background */}
-      <SideNavbar />
 
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
         {/* --- Page Header --- */}

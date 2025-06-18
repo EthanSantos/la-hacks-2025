@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
+import { AppSidebar } from '@/components/layout/app-sidebar';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
   title: 'Sentiment Analyzer',
@@ -16,7 +15,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            <div className="flex flex-1 flex-col">{children}</div>
+          </SidebarInset>
+        </SidebarProvider>
+      </body>
     </html>
   )
 }
