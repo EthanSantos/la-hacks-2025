@@ -117,7 +117,7 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="w-full sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Player Details</DialogTitle>
         </DialogHeader>
