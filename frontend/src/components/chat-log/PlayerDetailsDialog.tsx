@@ -9,6 +9,8 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Progress } from '@/components/ui/progress';
 import { useAvatarHeadshot } from '@/hooks/useAvatarHeadshot';
 import type { Message } from '@/types/sentiment';
 import { createClient } from '@supabase/supabase-js';
@@ -150,9 +152,6 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
                   </>
                 ) : playerStats && (
                   <>
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                      <Badge variant="outline" className="text-xs">{playerStats.totalMessages} {playerStats.totalMessages === 1 ? 'message' : 'messages'}</Badge>
-                    </div>
                     <div className="flex gap-4 mt-1 text-xs text-gray-500">
                       <span>Last Seen: {formatDate(playerStats.lastSeen)}</span>
                     </div>
@@ -245,26 +244,13 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
                   </CardHeader>
                   <CardContent className="pt-0 space-y-3">
                     <div className="space-y-4">
-                      {/* Total Messages */}
-                      <div>
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-gray-600 text-sm">Total Messages</span>
-                          <span className="font-semibold text-base">{playerStats.totalMessages}</span>
-                        </div>
-                      </div>
-
                       {/* Message Distribution */}
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600 text-sm">Positive</span>
                           <span className="font-semibold text-green-600 text-sm">{playerStats.positiveMessages}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div 
-                            className="bg-green-500 h-1.5 rounded-full" 
-                            style={{ width: `${(playerStats.positiveMessages / playerStats.totalMessages) * 100}%` }}
-                          ></div>
-                        </div>
+                        <Progress value={(playerStats.positiveMessages / playerStats.totalMessages) * 100} className="bg-green-500/20 [&_[data-slot=progress-indicator]]:bg-green-500" />
                       </div>
 
                       <div className="space-y-2">
@@ -272,12 +258,7 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
                           <span className="text-gray-600 text-sm">Neutral</span>
                           <span className="font-semibold text-gray-600 text-sm">{playerStats.neutralMessages}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div 
-                            className="bg-gray-500 h-1.5 rounded-full" 
-                            style={{ width: `${(playerStats.neutralMessages / playerStats.totalMessages) * 100}%` }}
-                          ></div>
-                        </div>
+                        <Progress value={(playerStats.neutralMessages / playerStats.totalMessages) * 100} className="bg-gray-500/20 [&_[data-slot=progress-indicator]]:bg-gray-500" />
                       </div>
 
                       <div className="space-y-2">
@@ -285,12 +266,7 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
                           <span className="text-gray-600 text-sm">Negative</span>
                           <span className="font-semibold text-red-600 text-sm">{playerStats.negativeMessages}</span>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div 
-                            className="bg-red-500 h-1.5 rounded-full" 
-                            style={{ width: `${(playerStats.negativeMessages / playerStats.totalMessages) * 100}%` }}
-                          ></div>
-                        </div>
+                        <Progress value={(playerStats.negativeMessages / playerStats.totalMessages) * 100} className="bg-red-500/20 [&_[data-slot=progress-indicator]]:bg-red-500" />
                       </div>
                     </div>
                   </CardContent>
@@ -325,17 +301,14 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
                     Kick Player
                   </Button>
                   <Button 
-                    variant="destructive" 
-                    className="w-full justify-start" 
+                    variant="outline" 
+                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border-red-600" 
                     size="sm"
                     onClick={() => console.log('Ban player:', message.player_id)}
                   >
                     <Ban className="h-3 w-3 mr-2" />
                     Ban Player
                   </Button>
-                  <p className="text-xs text-gray-500 mt-2">
-                    These actions are currently disabled for demo purposes.
-                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -343,27 +316,29 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
 
           <TabsContent value="history" className="mt-4">
             {playerMessages.length > 0 ? (
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {playerMessages.slice(0, 50).map((msg, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-sm text-gray-500 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatDate(msg.created_at)}
-                      </span>
-                      <Badge variant={getSentimentBadgeVariant(msg.sentiment_score)} className="text-xs">
-                        {msg.sentiment_score > 0 ? '+' : ''}{msg.sentiment_score}
-                      </Badge>
+              <ScrollArea className="h-96 rounded-lg border">
+                <div className="space-y-3 p-2">
+                  {playerMessages.slice(0, 50).map((msg, index) => (
+                    <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-sm text-gray-500 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatDate(msg.created_at)}
+                        </span>
+                        <Badge variant={getSentimentBadgeVariant(msg.sentiment_score)} className="text-xs">
+                          {msg.sentiment_score > 0 ? '+' : ''}{msg.sentiment_score}
+                        </Badge>
+                      </div>
+                      <p className="text-gray-800 text-sm">{msg.message}</p>
                     </div>
-                    <p className="text-gray-800 text-sm">{msg.message}</p>
-                  </div>
-                ))}
-                {playerMessages.length > 50 && (
-                  <p className="text-xs text-gray-500 text-center py-2">
-                    Showing 50 of {playerMessages.length} messages
-                  </p>
-                )}
-              </div>
+                  ))}
+                  {playerMessages.length > 50 && (
+                    <p className="text-xs text-gray-500 text-center py-2">
+                      Showing 50 of {playerMessages.length} messages
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
             ) : (
               <div className="text-center py-8 text-gray-500">
                 <History className="h-12 w-12 mx-auto mb-4 text-gray-300" />
