@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAvatarHeadshot } from '@/hooks/useAvatarHeadshot';
 import type { Message } from '@/types/sentiment';
 import { createClient } from '@supabase/supabase-js';
@@ -18,7 +20,8 @@ import {
   AlertTriangle, 
   Clock,
   UserX,
-  Ban
+  Ban,
+  History
 } from 'lucide-react';
 
 const supabase = createClient(
@@ -34,7 +37,6 @@ interface PlayerDetailsDialogProps {
 
 interface PlayerStats {
   totalMessages: number;
-  averageSentiment: number;
   positiveMessages: number;
   negativeMessages: number;
   neutralMessages: number;
@@ -44,6 +46,7 @@ interface PlayerStats {
 
 export default function PlayerDetailsDialog({ message, isOpen, onClose }: PlayerDetailsDialogProps) {
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
+  const [playerMessages, setPlayerMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
 
   const { url: avatarUrl } = useAvatarHeadshot(message?.player_id?.toString());
@@ -59,20 +62,19 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
 
       if (messages && messages.length > 0) {
         const totalMessages = messages.length;
-        const avgSentiment = messages.reduce((sum, msg) => sum + (msg.sentiment_score || 0), 0) / totalMessages;
         const positiveMessages = messages.filter(msg => (msg.sentiment_score || 0) > 25).length;
         const negativeMessages = messages.filter(msg => (msg.sentiment_score || 0) < -25).length;
         const neutralMessages = totalMessages - positiveMessages - negativeMessages;
 
         setPlayerStats({
           totalMessages,
-          averageSentiment: Math.round(avgSentiment * 10) / 10,
           positiveMessages,
           negativeMessages,
           neutralMessages,
           lastSeen: messages[0].created_at,
           firstSeen: messages[messages.length - 1].created_at,
         });
+        setPlayerMessages(messages);
       }
     } catch (error) {
       console.error('Failed to fetch player stats:', error);
@@ -97,12 +99,6 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
     });
   };
 
-  const getSentimentColor = (score: number) => {
-    if (score > 25) return 'text-green-600';
-    if (score < -25) return 'text-red-600';
-    return 'text-gray-600';
-  };
-
   const getSentimentBadgeVariant = (score: number): "default" | "secondary" | "destructive" => {
     if (score > 25) return 'default';
     if (score < -25) return 'destructive';
@@ -118,148 +114,266 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">Player Details</DialogTitle>
-        </DialogHeader>
+        <Tabs defaultValue="details" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="details" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Player Details
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Chat History
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="space-y-6">
-          {/* Player Info Section */}
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={avatarUrl || undefined} />
-              <AvatarFallback className="bg-blue-500 text-white text-lg font-medium">
-                {getInitials(message.player_name)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold">{message.player_name}</h3>
-              <p className="text-sm text-gray-600">Player ID: {message.player_id}</p>
-              {playerStats && (
-                <>
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    <Badge variant="outline">{playerStats.totalMessages} messages</Badge>
-                    <Badge variant={playerStats.averageSentiment > 0 ? 'default' : 'destructive'}>
-                      Avg: {playerStats.averageSentiment > 0 ? '+' : ''}{playerStats.averageSentiment}
-                    </Badge>
-                  </div>
-                  <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                    <span>First Seen: {formatDate(playerStats.firstSeen)}</span>
-                    <span>Last Seen: {formatDate(playerStats.lastSeen)}</span>
-                  </div>
-                </>
-              )}
+          <TabsContent value="details" className="space-y-4 mt-4">
+            {/* Player Info Section */}
+            <div className="flex items-center gap-3">
+              <Avatar className="h-12 w-12">
+                <AvatarImage src={avatarUrl || undefined} />
+                <AvatarFallback className="bg-blue-500 text-white text-sm font-medium">
+                  {getInitials(message.player_name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold">{message.player_name}</h3>
+                <p className="text-sm text-gray-600">Player ID: {message.player_id}</p>
+                {loading ? (
+                  <>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      <Skeleton className="h-5 w-20" />
+                    </div>
+                    <div className="flex gap-4 mt-1">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </>
+                ) : playerStats && (
+                  <>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      <Badge variant="outline" className="text-xs">{playerStats.totalMessages} messages</Badge>
+                    </div>
+                    <div className="flex gap-4 mt-1 text-xs text-gray-500">
+                      <span>First Seen: {formatDate(playerStats.firstSeen)}</span>
+                      <span>Last Seen: {formatDate(playerStats.lastSeen)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
 
-          <Separator />
+            <Separator />
 
-          {/* Selected Message */}
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <MessageSquare className="h-4 w-4" />
-                Selected Message
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-gray-800">{message.message}</p>
-              </div>
-              <div className="flex justify-between items-center mt-4 text-sm">
-                <span className="text-gray-500 flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  {formatDate(message.created_at)}
-                </span>
-                <Badge variant={getSentimentBadgeVariant(message.sentiment_score)}>
-                  Sentiment: {message.sentiment_score > 0 ? '+' : ''}{message.sentiment_score}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stats and Actions Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Statistics */}
-            {playerStats && (
-              <Card className="lg:col-span-2">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="h-4 w-4" />
-                    Statistics
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Total Messages</span>
-                      <span className="font-semibold">{playerStats.totalMessages}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Positive Messages</span>
-                      <span className="font-semibold text-green-600">{playerStats.positiveMessages}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Neutral Messages</span>
-                      <span className="font-semibold text-gray-600">{playerStats.neutralMessages}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Negative Messages</span>
-                      <span className="font-semibold text-red-600">{playerStats.negativeMessages}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Average Sentiment</span>
-                      <span className={`font-semibold ${playerStats.averageSentiment > 0 ? 'text-green-600' : playerStats.averageSentiment < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                        {playerStats.averageSentiment > 0 ? '+' : ''}{playerStats.averageSentiment}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Moderation Actions */}
+            {/* Selected Message */}
             <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Shield className="h-4 w-4" />
-                  Moderation Actions
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <MessageSquare className="h-4 w-4" />
+                  Selected Message
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" 
-                  size="sm"
-                  onClick={() => console.log('Warn player:', message.player_id)}
-                >
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Warn Player
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start text-orange-600 hover:text-orange-700 hover:bg-orange-50" 
-                  size="sm"
-                  onClick={() => console.log('Kick player:', message.player_id)}
-                >
-                  <UserX className="h-4 w-4 mr-2" />
-                  Kick Player
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  className="w-full justify-start" 
-                  size="sm"
-                  onClick={() => console.log('Ban player:', message.player_id)}
-                >
-                  <Ban className="h-4 w-4 mr-2" />
-                  Ban Player
-                </Button>
-                <p className="text-xs text-gray-500 mt-2">
-                  These actions are currently disabled for demo purposes.
-                </p>
+              <CardContent className="pt-0">
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-gray-800 text-sm">{message.message}</p>
+                </div>
+                <div className="flex justify-between items-center mt-3 text-xs">
+                  <span className="text-gray-500 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatDate(message.created_at)}
+                  </span>
+                  <Badge variant={getSentimentBadgeVariant(message.sentiment_score)} className="text-xs">
+                    Sentiment: {message.sentiment_score > 0 ? '+' : ''}{message.sentiment_score}
+                  </Badge>
+                </div>
               </CardContent>
             </Card>
-          </div>
-        </div>
+
+            {/* Stats and Actions Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Statistics */}
+              {loading ? (
+                <Card className="lg:col-span-2">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <TrendingUp className="h-4 w-4" />
+                      Statistics
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-3">
+                    <div className="space-y-4">
+                      {/* Total Messages Skeleton */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-6 w-8" />
+                        </div>
+                      </div>
+
+                      {/* Message Distribution Skeletons */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Skeleton className="h-4 w-16" />
+                          <Skeleton className="h-4 w-6" />
+                        </div>
+                        <Skeleton className="w-full h-1.5 rounded-full" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Skeleton className="h-4 w-12" />
+                          <Skeleton className="h-4 w-6" />
+                        </div>
+                        <Skeleton className="w-full h-1.5 rounded-full" />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Skeleton className="h-4 w-16" />
+                          <Skeleton className="h-4 w-6" />
+                        </div>
+                        <Skeleton className="w-full h-1.5 rounded-full" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : playerStats && (
+                <Card className="lg:col-span-2">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-sm">
+                      <TrendingUp className="h-4 w-4" />
+                      Statistics
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0 space-y-3">
+                    <div className="space-y-4">
+                      {/* Total Messages */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-gray-600 text-sm">Total Messages</span>
+                          <span className="font-semibold text-base">{playerStats.totalMessages}</span>
+                        </div>
+                      </div>
+
+                      {/* Message Distribution */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 text-sm">Positive</span>
+                          <span className="font-semibold text-green-600 text-sm">{playerStats.positiveMessages}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-green-500 h-1.5 rounded-full" 
+                            style={{ width: `${(playerStats.positiveMessages / playerStats.totalMessages) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 text-sm">Neutral</span>
+                          <span className="font-semibold text-gray-600 text-sm">{playerStats.neutralMessages}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-gray-500 h-1.5 rounded-full" 
+                            style={{ width: `${(playerStats.neutralMessages / playerStats.totalMessages) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 text-sm">Negative</span>
+                          <span className="font-semibold text-red-600 text-sm">{playerStats.negativeMessages}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-red-500 h-1.5 rounded-full" 
+                            style={{ width: `${(playerStats.negativeMessages / playerStats.totalMessages) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Moderation Actions */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Shield className="h-4 w-4" />
+                    Moderation Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-2">
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" 
+                    size="sm"
+                    onClick={() => console.log('Warn player:', message.player_id)}
+                  >
+                    <AlertTriangle className="h-3 w-3 mr-2" />
+                    Warn Player
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start text-orange-600 hover:text-orange-700 hover:bg-orange-50" 
+                    size="sm"
+                    onClick={() => console.log('Kick player:', message.player_id)}
+                  >
+                    <UserX className="h-3 w-3 mr-2" />
+                    Kick Player
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    className="w-full justify-start" 
+                    size="sm"
+                    onClick={() => console.log('Ban player:', message.player_id)}
+                  >
+                    <Ban className="h-3 w-3 mr-2" />
+                    Ban Player
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    These actions are currently disabled for demo purposes.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            {playerMessages.length > 0 ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {playerMessages.slice(0, 50).map((msg, index) => (
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-sm text-gray-500 flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatDate(msg.created_at)}
+                      </span>
+                      <Badge variant={getSentimentBadgeVariant(msg.sentiment_score)} className="text-xs">
+                        {msg.sentiment_score > 0 ? '+' : ''}{msg.sentiment_score}
+                      </Badge>
+                    </div>
+                    <p className="text-gray-800 text-sm">{msg.message}</p>
+                  </div>
+                ))}
+                {playerMessages.length > 50 && (
+                  <p className="text-xs text-gray-500 text-center py-2">
+                    Showing 50 of {playerMessages.length} messages
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <History className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No chat history available</p>
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+
       </DialogContent>
     </Dialog>
   );
