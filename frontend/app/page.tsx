@@ -136,51 +136,47 @@ export default function HomePage() {
   };
 
   return (
-    <div className="h-screen flex overflow-hidden">
-      
-      {/* Content container */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="container mx-auto flex-1 flex flex-col p-6 overflow-hidden">
-          {/* Header */}
-          <div className="mb-4 flex-shrink-0">
-            <h1 className="text-2xl font-bold">Sentiment Analysis Dashboard</h1>
-            <p className="text-gray-600 text-sm">Monitor chat messages and analyze sentiment in real-time</p>
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="container mx-auto flex-1 flex flex-col p-4 lg:p-6 overflow-hidden">
+        {/* Header */}
+        <div className="mb-3 flex-shrink-0">
+          <h1 className="text-xl lg:text-2xl font-bold">Sentiment Analysis Dashboard</h1>
+          <p className="text-gray-600 text-xs lg:text-sm">Monitor chat messages and analyze sentiment in real-time</p>
+        </div>
+
+        {/* Main content area */}
+        <div className="grid grid-cols-3 gap-3 lg:gap-4 flex-1 overflow-hidden min-h-0">
+          {/* Left column - Chat container */}
+          <div className="col-span-2 overflow-hidden">
+            <ChatLog title="Live Chat Messages" />
           </div>
 
-          {/* Main content area */}
-          <div className="grid grid-cols-3 gap-4 flex-1 overflow-hidden">
-            {/* Left column - Chat container */}
-            <div className="col-span-2 overflow-hidden">
-              <ChatLog title="Live Chat Messages" />
+          {/* Right column */}
+          <div className="col-span-1 flex flex-col gap-3 lg:gap-4 overflow-hidden min-h-0">
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <SentimentAnalyzer />
             </div>
 
-            {/* Right column */}
-            <div className="col-span-1 flex flex-col gap-4 overflow-auto">
-              <div className="flex-1 overflow-hidden flex flex-col">
-                <SentimentAnalyzer />
-              </div>
-
-              {/* Stats Cards container */}
-              <div className="space-y-3 flex-shrink-0">
-                <StatsCard
-                  title="Total Messages"
-                  value={stats.totalMessages}
-                  description="All-time message count"
-                  isLoading={isLoading}
-                />
-                <StatsCard
-                  title="Unique Players"
-                  value={stats.uniquePlayers}
-                  description="Total registered players"
-                  isLoading={isLoading}
-                />
-                <StatsCard
-                  title="Average Sentiment"
-                  value={formatSentiment(stats.avgSentiment)}
-                  description={`${getSentimentDescription(stats.avgSentiment)} (visible messages)`}
-                  isLoading={isLoading}
-                />
-              </div>
+            {/* Stats Cards container */}
+            <div className="space-y-2 lg:space-y-3 flex-shrink-0">
+              <StatsCard
+                title="Total Messages"
+                value={stats.totalMessages}
+                description="All-time message count"
+                isLoading={isLoading}
+              />
+              <StatsCard
+                title="Unique Players"
+                value={stats.uniquePlayers}
+                description="Total registered players"
+                isLoading={isLoading}
+              />
+              <StatsCard
+                title="Average Sentiment"
+                value={formatSentiment(stats.avgSentiment)}
+                description={`${getSentimentDescription(stats.avgSentiment)} (visible messages)`}
+                isLoading={isLoading}
+              />
             </div>
           </div>
         </div>

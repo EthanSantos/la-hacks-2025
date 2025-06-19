@@ -47,17 +47,17 @@ const LeaderboardPage = () => {
     : 0;
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="h-full flex flex-col overflow-hidden bg-background">
       
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="py-8 px-6">
-          <div className="flex justify-between items-center mb-8">
+      <div className="flex-1 overflow-y-auto">
+        <div className="py-4 lg:py-8 px-4 lg:px-6">
+          <div className="flex justify-between items-center mb-4 lg:mb-8">
             <div>
-              <h1 className="text-3xl font-bold mb-2">
+              <h1 className="text-2xl lg:text-3xl font-bold mb-1 lg:mb-2">
                 Sentiment Leaderboard
               </h1>
-              <p className="text-gray-500">
+              <p className="text-gray-500 text-sm">
                 Top players ranked by total sentiment score across all messages
               </p>
             </div>
@@ -68,40 +68,40 @@ const LeaderboardPage = () => {
               disabled={isLoading}
               className="flex items-center gap-2"
             >
-              <RefreshCcw className="h-4 w-4" />
+              <RefreshCcw className="h-3 w-3 lg:h-4 lg:w-4" />
               Refresh
             </Button>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-8">
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Total Players</CardDescription>
-                <CardTitle className="flex items-center">
-                  <Trophy className="h-4 w-4 mr-2 text-yellow-500" />
-                  {isLoading ? <Skeleton className="h-7 w-20" /> : topPlayers.length}
+                <CardDescription className="text-xs lg:text-sm">Total Players</CardDescription>
+                <CardTitle className="flex items-center text-sm lg:text-base">
+                  <Trophy className="h-3 w-3 lg:h-4 lg:w-4 mr-2 text-yellow-500" />
+                  {isLoading ? <Skeleton className="h-5 lg:h-7 w-16 lg:w-20" /> : topPlayers.length}
                 </CardTitle>
               </CardHeader>
             </Card>
             
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Total Messages</CardDescription>
-                <CardTitle className="flex items-center">
-                  <MessageSquare className="h-4 w-4 mr-2 text-blue-500" />
-                  {isLoading ? <Skeleton className="h-7 w-20" /> : totalMessages}
+                <CardDescription className="text-xs lg:text-sm">Total Messages</CardDescription>
+                <CardTitle className="flex items-center text-sm lg:text-base">
+                  <MessageSquare className="h-3 w-3 lg:h-4 lg:w-4 mr-2 text-blue-500" />
+                  {isLoading ? <Skeleton className="h-5 lg:h-7 w-16 lg:w-20" /> : totalMessages}
                 </CardTitle>
               </CardHeader>
             </Card>
             
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Highest Score</CardDescription>
-                <CardTitle className="flex items-center">
-                  <TrendingUp className="h-4 w-4 mr-2 text-green-500" />
+                <CardDescription className="text-xs lg:text-sm">Highest Score</CardDescription>
+                <CardTitle className="flex items-center text-sm lg:text-base">
+                  <TrendingUp className="h-3 w-3 lg:h-4 lg:w-4 mr-2 text-green-500" />
                   {isLoading ? (
-                    <Skeleton className="h-7 w-20" />
+                    <Skeleton className="h-5 lg:h-7 w-16 lg:w-20" />
                   ) : (
                     topPlayers.length > 0 ? topPlayers[0].total_sentiment_score : 0
                   )}
@@ -111,10 +111,10 @@ const LeaderboardPage = () => {
             
             <Card>
               <CardHeader className="pb-2">
-                <CardDescription>Average Score</CardDescription>
-                <CardTitle className="flex items-center">
-                  <BarChart2 className="h-4 w-4 mr-2 text-purple-500" />
-                  {isLoading ? <Skeleton className="h-7 w-20" /> : avgScore}
+                <CardDescription className="text-xs lg:text-sm">Average Score</CardDescription>
+                <CardTitle className="flex items-center text-sm lg:text-base">
+                  <BarChart2 className="h-3 w-3 lg:h-4 lg:w-4 mr-2 text-purple-500" />
+                  {isLoading ? <Skeleton className="h-5 lg:h-7 w-16 lg:w-20" /> : avgScore}
                 </CardTitle>
               </CardHeader>
             </Card>
@@ -122,10 +122,10 @@ const LeaderboardPage = () => {
 
           {/* Main Leaderboard */}
           <Card className="shadow-md">
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
-                <CardTitle>Top Players</CardTitle>
-                <CardDescription>Players with the highest total sentiment scores</CardDescription>
+                <CardTitle className="text-base lg:text-lg">Top Players</CardTitle>
+                <CardDescription className="text-xs lg:text-sm">Players with the highest total sentiment scores</CardDescription>
               </div>
               {lastUpdated && (
                 <div className="text-xs text-gray-500">
@@ -133,62 +133,65 @@ const LeaderboardPage = () => {
                 </div>
               )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-4">
               {error ? (
-                <div className="text-center py-8 text-red-500">
-                  <p>{error}</p>
+                <div className="text-center py-6 lg:py-8 text-red-500">
+                  <p className="text-sm">{error}</p>
                   <Button 
                     onClick={fetchTopPlayers} 
-                    className="mt-4"
+                    className="mt-3 lg:mt-4"
                     variant="outline"
+                    size="sm"
                   >
                     Retry
                   </Button>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">Rank</TableHead>
-                      <TableHead>Player</TableHead>
-                      <TableHead>Total Score</TableHead>
-                      <TableHead>Messages</TableHead>
-                      <TableHead className="text-right">Average Sentiment</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      Array(5).fill(0).map((_, index) => (
-                        <TableRow key={`skeleton-${index}`}>
-                          <TableCell><Skeleton className="h-6 w-6" /></TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Skeleton className="h-10 w-10 rounded-full" />
-                              <Skeleton className="h-6 w-32" />
-                            </div>
-                          </TableCell>
-                          <TableCell><Skeleton className="h-6 w-16" /></TableCell>
-                          <TableCell><Skeleton className="h-6 w-16" /></TableCell>
-                          <TableCell className="text-right"><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
-                        </TableRow>
-                      ))
-                    ) : topPlayers.length === 0 ? (
+                <div className="max-h-[300px] lg:max-h-[400px] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center">
-                          No player data found
-                        </TableCell>
+                        <TableHead className="w-12 lg:w-16 text-xs lg:text-sm">Rank</TableHead>
+                        <TableHead className="text-xs lg:text-sm">Player</TableHead>
+                        <TableHead className="text-xs lg:text-sm">Total Score</TableHead>
+                        <TableHead className="text-xs lg:text-sm">Messages</TableHead>
+                        <TableHead className="text-right text-xs lg:text-sm">Average Sentiment</TableHead>
                       </TableRow>
-                    ) : (
-                      topPlayers.map((player, index) => (
-                        <PlayerRow 
-                          key={player.player_id} 
-                          player={player} 
-                          rank={index + 1} 
-                        />
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoading ? (
+                        Array(5).fill(0).map((_, index) => (
+                          <TableRow key={`skeleton-${index}`}>
+                            <TableCell><Skeleton className="h-4 lg:h-6 w-4 lg:w-6" /></TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2 lg:gap-3">
+                                <Skeleton className="h-8 w-8 lg:h-10 lg:w-10 rounded-full" />
+                                <Skeleton className="h-4 lg:h-6 w-24 lg:w-32" />
+                              </div>
+                            </TableCell>
+                            <TableCell><Skeleton className="h-4 lg:h-6 w-12 lg:w-16" /></TableCell>
+                            <TableCell><Skeleton className="h-4 lg:h-6 w-12 lg:w-16" /></TableCell>
+                            <TableCell className="text-right"><Skeleton className="h-4 lg:h-6 w-12 lg:w-16 ml-auto" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : topPlayers.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-20 lg:h-24 text-center text-sm">
+                            No player data found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        topPlayers.map((player, index) => (
+                          <PlayerRow 
+                            key={player.player_id} 
+                            player={player} 
+                            rank={index + 1} 
+                          />
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>

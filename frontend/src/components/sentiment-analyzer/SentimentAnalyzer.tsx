@@ -43,17 +43,17 @@ export default function SentimentAnalyzer() {
   return (
     <>
       <Card className="w-full h-full flex flex-col">
-        <CardHeader className="flex-shrink-0 pb-4">
+        <CardHeader className="flex-shrink-0 pb-2 lg:pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <BarChart2 className="h-5 w-5 mr-2 text-primary" />
-              <CardTitle>Sentiment Analyzer</CardTitle>
+              <BarChart2 className="h-4 w-4 lg:h-5 lg:w-5 mr-2 text-primary" />
+              <CardTitle className="text-base lg:text-lg">Sentiment Analyzer</CardTitle>
             </div>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <InfoIcon className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" className="h-6 w-6 lg:h-8 lg:w-8">
+                    <InfoIcon className="h-3 w-3 lg:h-4 lg:w-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs">
@@ -62,41 +62,41 @@ export default function SentimentAnalyzer() {
               </Tooltip>
             </TooltipProvider>
           </div>
-          <CardDescription>
+          <CardDescription className="text-xs lg:text-sm">
             Enter a message to analyze its emotional tone and sentiment
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="flex flex-col px-6 space-y-4 flex-1">
+        <CardContent className="flex flex-col px-4 lg:px-6 space-y-3 lg:space-y-4 flex-1 min-h-0">
           <Textarea
-            className="min-h-[125px] resize-none flex-1 focus-visible:ring-primary"
+            className="min-h-[80px] lg:min-h-[100px] resize-none flex-1 focus-visible:ring-primary text-sm"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Enter your message to analyze..."
           />
 
           {error && (
-            <Alert variant="destructive">
+            <Alert variant="destructive" className="text-xs">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
         </CardContent>
 
-        <CardFooter className="flex-shrink-0 pt-0 px-6 pb-6">
+        <CardFooter className="flex-shrink-0 pt-0 px-4 lg:px-6 pb-4 lg:pb-6">
           <Button
             onClick={handleAnalyze}
-            className="w-full"
+            className="w-full text-sm"
             disabled={isLoading || !message.trim()}
           >
             {isLoading ? (
               <span className="flex items-center justify-center">
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-3 w-3 lg:h-4 lg:w-4 mr-2 animate-spin" />
                 Analyzing...
               </span>
             ) : (
               <span className="flex items-center justify-center">
                 Analyze Sentiment
-                <Send className="ml-2 h-4 w-4" />
+                <Send className="ml-2 h-3 w-3 lg:h-4 lg:w-4" />
               </span>
             )}
           </Button>

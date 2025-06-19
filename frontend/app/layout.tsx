@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { AppSidebar } from '@/components/layout/app-sidebar';
+import { SiteHeader } from '@/components/layout/site-header';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
@@ -15,11 +16,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <body className="h-screen overflow-hidden">
         <SidebarProvider>
           <AppSidebar />
-          <SidebarInset>
-            <div className="flex flex-1 flex-col">{children}</div>
+          <SidebarInset className="flex flex-col h-screen">
+            <SiteHeader />
+            <main className="flex-1 overflow-hidden">
+              {children}
+            </main>
           </SidebarInset>
         </SidebarProvider>
       </body>
