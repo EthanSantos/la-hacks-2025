@@ -114,7 +114,7 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-full sm:max-w-4xl">
-        <Tabs defaultValue="details" className="w-full">
+        <Tabs defaultValue="details" className="w-full mt-8">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details" className="flex items-center gap-2">
               <User className="h-4 w-4" />
@@ -151,10 +151,9 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
                 ) : playerStats && (
                   <>
                     <div className="flex gap-2 mt-1 flex-wrap">
-                      <Badge variant="outline" className="text-xs">{playerStats.totalMessages} messages</Badge>
+                      <Badge variant="outline" className="text-xs">{playerStats.totalMessages} {playerStats.totalMessages === 1 ? 'message' : 'messages'}</Badge>
                     </div>
                     <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                      <span>First Seen: {formatDate(playerStats.firstSeen)}</span>
                       <span>Last Seen: {formatDate(playerStats.lastSeen)}</span>
                     </div>
                   </>
