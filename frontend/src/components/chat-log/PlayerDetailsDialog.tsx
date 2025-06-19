@@ -135,12 +135,18 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
               <h3 className="text-xl font-semibold">{message.player_name}</h3>
               <p className="text-sm text-gray-600">Player ID: {message.player_id}</p>
               {playerStats && (
-                <div className="flex gap-2 mt-2 flex-wrap">
-                  <Badge variant="outline">{playerStats.totalMessages} messages</Badge>
-                  <Badge variant={playerStats.averageSentiment > 0 ? 'default' : 'destructive'}>
-                    Avg: {playerStats.averageSentiment > 0 ? '+' : ''}{playerStats.averageSentiment}
-                  </Badge>
-                </div>
+                <>
+                  <div className="flex gap-2 mt-2 flex-wrap">
+                    <Badge variant="outline">{playerStats.totalMessages} messages</Badge>
+                    <Badge variant={playerStats.averageSentiment > 0 ? 'default' : 'destructive'}>
+                      Avg: {playerStats.averageSentiment > 0 ? '+' : ''}{playerStats.averageSentiment}
+                    </Badge>
+                  </div>
+                  <div className="flex gap-4 mt-2 text-xs text-gray-500">
+                    <span>First Seen: {formatDate(playerStats.firstSeen)}</span>
+                    <span>Last Seen: {formatDate(playerStats.lastSeen)}</span>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -172,46 +178,39 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
           </Card>
 
           {/* Stats and Actions Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Statistics */}
             {playerStats && (
-              <Card>
+              <Card className="lg:col-span-2">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <TrendingUp className="h-4 w-4" />
                     Statistics
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Total Messages:</span>
-                      <span className="font-medium">{playerStats.totalMessages}</span>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Total Messages</span>
+                      <span className="font-semibold">{playerStats.totalMessages}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Positive:</span>
-                      <span className="font-medium text-green-600">{playerStats.positiveMessages}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Positive Messages</span>
+                      <span className="font-semibold text-green-600">{playerStats.positiveMessages}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Neutral:</span>
-                      <span className="font-medium text-gray-600">{playerStats.neutralMessages}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Neutral Messages</span>
+                      <span className="font-semibold text-gray-600">{playerStats.neutralMessages}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Negative:</span>
-                      <span className="font-medium text-red-600">{playerStats.negativeMessages}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Negative Messages</span>
+                      <span className="font-semibold text-red-600">{playerStats.negativeMessages}</span>
                     </div>
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="space-y-2">
-                    <div className="text-sm">
-                      <span className="text-gray-600">First Seen:</span>
-                      <p className="font-medium text-xs mt-1">{formatDate(playerStats.firstSeen)}</p>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-gray-600">Last Seen:</span>
-                      <p className="font-medium text-xs mt-1">{formatDate(playerStats.lastSeen)}</p>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Average Sentiment</span>
+                      <span className={`font-semibold ${playerStats.averageSentiment > 0 ? 'text-green-600' : playerStats.averageSentiment < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                        {playerStats.averageSentiment > 0 ? '+' : ''}{playerStats.averageSentiment}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
