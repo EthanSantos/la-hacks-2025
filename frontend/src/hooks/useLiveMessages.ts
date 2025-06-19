@@ -37,7 +37,7 @@ export function useLiveMessages() {
         try {
             setLoading(true);
             console.log("Performing fetch");
-            const data = await sentimentApi.getLiveMessages(20);
+            const data = await sentimentApi.getLiveMessages(50);
             console.log("Fetch successful, messages:", data.length);
             
             setMessages(data);
