@@ -26,7 +26,7 @@ export function useBreadcrumbs(): BreadcrumbItem[] {
       return breadcrumbs
     }
 
-    // Always add home first for other routes
+    // Always add dashboard first for other routes
     breadcrumbs.push({
       label: "Dashboard",
       href: "/",
