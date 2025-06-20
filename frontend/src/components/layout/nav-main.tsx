@@ -6,15 +6,15 @@ import { usePathname } from "next/navigation"
 import { useState } from "react"
 
 import {
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
+  SidebarGroup as Group,
+  SidebarGroupContent as GroupContent,
+  SidebarGroupLabel as GroupLabel,
+  SidebarMenu as Menu,
+  SidebarMenuButton as MenuButton,
+  SidebarMenuItem as MenuItem,
+  SidebarMenuSub as MenuSub,
+  SidebarMenuSubButton as MenuSubButton,
+  SidebarMenuSubItem as MenuSubItem,
 } from "@/components/ui/sidebar"
 
 interface NavItem {
@@ -53,20 +53,20 @@ export function NavMain({
   }
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>MENU</SidebarGroupLabel>
-      <SidebarGroupContent className="flex flex-col gap-2">
-        <SidebarMenu>
+    <Group>
+      <GroupLabel>MENU</GroupLabel>
+      <GroupContent className="flex flex-col gap-2">
+        <Menu>
           {items.map((item) => {
             const hasSubItems = item.items && item.items.length > 0
             const isItemActive = isActive(item.url)
             const isExpanded = openItems[item.title]
 
             return (
-              <SidebarMenuItem key={item.title}>
+              <MenuItem key={item.title}>
                 {hasSubItems ? (
                   <>
-                    <SidebarMenuButton 
+                    <MenuButton 
                       tooltip={item.title}
                       onClick={() => toggleItem(item.title)}
                       isActive={isItemActive}
@@ -77,12 +77,12 @@ export function NavMain({
                       <IconChevronDown className={`ml-auto h-4 w-4 transition-transform duration-200 ${
                         isExpanded ? "rotate-180" : ""
                       }`} />
-                    </SidebarMenuButton>
+                    </MenuButton>
                     {isExpanded && (
-                      <SidebarMenuSub>
+                      <MenuSub>
                         {item.items?.map((subItem) => (
-                          <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton 
+                          <MenuSubItem key={subItem.title}>
+                            <MenuSubButton 
                               asChild
                               isActive={pathname === subItem.url}
                             >
@@ -90,14 +90,14 @@ export function NavMain({
                                 {subItem.icon && <subItem.icon className="h-4 w-4" />}
                                 <span>{subItem.title}</span>
                               </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
+                            </MenuSubButton>
+                          </MenuSubItem>
                         ))}
-                      </SidebarMenuSub>
+                      </MenuSub>
                     )}
                   </>
                 ) : (
-                  <SidebarMenuButton 
+                  <MenuButton 
                     tooltip={item.title}
                     asChild
                     isActive={isActive(item.url)}
@@ -106,13 +106,13 @@ export function NavMain({
                       {item.icon && <item.icon className="h-6 w-6" />}
                       <span>{item.title}</span>
                     </Link>
-                  </SidebarMenuButton>
+                  </MenuButton>
                 )}
-              </SidebarMenuItem>
+              </MenuItem>
             )
           })}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+        </Menu>
+      </GroupContent>
+    </Group>
   )
 }

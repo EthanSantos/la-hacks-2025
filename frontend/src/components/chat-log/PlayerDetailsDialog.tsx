@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { useAvatarHeadshot } from '@/hooks/useAvatarHeadshot';
 import type { Message } from '@/types/sentiment';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { 
   User, 
   MessageSquare, 
@@ -25,11 +25,6 @@ import {
   Ban,
   History
 } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
 
 interface PlayerDetailsDialogProps {
   message: Message | null;

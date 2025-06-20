@@ -60,24 +60,19 @@ export default function ModerationPage() {
         console.error('Error fetching player count:', playersResponse.error);
       }
 
-      let avgSentiment = 0;
-      if (messages && messages.length > 0) {
-        const totalSentiment = messages.reduce((sum, msg) => sum + msg.sentiment_score, 0);
-        avgSentiment = totalSentiment / messages.length;
-      }
-
-      setStats({
+      setStats(prev => ({
+        ...prev,
         totalMessages: messagesResponse.count || 0,
         uniquePlayers: playersResponse.count || 0,
-        avgSentiment: avgSentiment,
-      });
+        // avgSentiment will be set in a separate effect
+      }));
 
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching stats:', error);
       setIsLoading(false);
     }
-  }, [messages]);
+  }, []); // no messages dependency
 
   useEffect(() => {
     if (!messages || messages.length === 0) {
