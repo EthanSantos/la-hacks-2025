@@ -6,8 +6,31 @@ import React, { useState, useEffect, useCallback } from 'react'; // Added useCal
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from '@/components/ui/button'; // Import Button for Retry
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 // Import the Chart component from react-google-charts
-import { Chart } from "react-google-charts";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  ReferenceLine,
+  Area,
+} from 'recharts';
+import { ChartContainer } from '@/components/ui/chart';
 
 // --- Date Formatting ---
 import { format } from 'date-fns';
@@ -23,9 +46,10 @@ import {
 // --- Icons (Example using heroicons - install `@heroicons/react` if needed) ---
 import {
   ChatBubbleLeftEllipsisIcon,
-  ChartBarIcon, // Or use a sentiment-specific icon
+  ChartBarIcon,
   UsersIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
 
@@ -100,69 +124,16 @@ export default function AnalyticsPage() {
     loadAllTimeAnalyticsData();
   }, [loadAllTimeAnalyticsData]); // Call fetch function
 
-  // --- Chart Options (Extracted for Readability) ---
-  const lineChartOptions = {
-    curveType: 'function', // Smoother line
-    legend: { position: 'none' },
-    hAxis: {
-      title: 'Hour of Day',
-      textStyle: { color: 'hsl(var(--muted-foreground))', fontSize: 11 },
-      titleTextStyle: { color: 'hsl(var(--muted-foreground))', fontSize: 12, italic: false, bold: false },
-      gridlines: { color: 'transparent' },
-      slantedText: false,
-      // Dynamically adjust label frequency based on data points, ensuring reasonable spacing
-      showTextEvery: Math.max(1, Math.ceil(trendData.length / 12)),
-    },
-    vAxis: {
-      title: 'Avg. Sentiment Score',
-      minValue: -100,
-      maxValue: 100,
-      textStyle: { color: 'hsl(var(--muted-foreground))', fontSize: 11 },
-      titleTextStyle: { color: 'hsl(var(--muted-foreground))', fontSize: 12, italic: false, bold: false },
-      gridlines: { color: 'hsl(var(--border))', count: 5 }, // Use theme border color
-      baselineColor: 'hsl(var(--muted-foreground))', // Use theme muted color
-    },
-    colors: LINE_CHART_COLOR,
-    chartArea: { width: '85%', height: '75%', left: 60, top: 20 }, // Adjust margins if needed
-    tooltip: {
-      textStyle: { color: '#333' }, // Tooltip text color (often best kept dark for readability)
-      showColorCode: true,
-      isHtml: true, // Allows for richer HTML tooltips if needed later
-    },
-    pointSize: 5, // Slightly larger points
-    lineWidth: 2,
-    series: { 0: { areaOpacity: 0.1 } }, // Subtle area fill
-    backgroundColor: 'transparent', // Use card background
-    // focusTarget: 'category', // Highlights points/tooltips based on category hover
-  };
+  // Recharts data sets (memoized)
+  const trendChartData = React.useMemo(
+    () => trendData.slice(1).map((r) => ({ hour: r[0] as string, avg: r[1] as number })),
+    [trendData]
+  );
 
-  const pieChartOptions = {
-    pieHole: 0.45, // Slightly larger hole
-    is3D: false,
-    // Colors assigned based on the guaranteed order (Positive, Neutral, Negative)
-    colors: PIE_CHART_COLORS,
-    legend: {
-      position: 'bottom',
-      alignment: 'center',
-      textStyle: { color: 'hsl(var(--foreground))', fontSize: 13 }, // Use theme text color
-    },
-    tooltip: {
-      text: 'percentage', // Show percentage on hover
-      textStyle: { color: '#333' },
-      showColorCode: true,
-    },
-    pieSliceTextStyle: {
-      color: '#FFFFFF', // White text on slices
-      fontSize: 12,
-      bold: true,
-    },
-    // Use card background color for slice border for seamless look
-    pieSliceBorderColor: 'hsl(var(--card))',
-    chartArea: { width: '90%', height: '75%', top: 20 }, // Adjust area
-    backgroundColor: 'transparent', // Use card background
-     // Slices object is less critical now due to guaranteed data order matching PIE_CHART_COLORS
-    // slices: { ... } // Can be removed if data order is solid
-  };
+  const distributionChartData = React.useMemo(
+    () => distributionData.slice(1).map((r) => ({ sentiment: r[0] as string, count: r[1] as number })),
+    [distributionData]
+  );
 
   // --- Render Helper for Stat Card Content ---
   const renderStatContent = (value: number | undefined | null, formatType: 'number' | 'decimal' | 'score', unit?: string) => {
@@ -206,171 +177,232 @@ export default function AnalyticsPage() {
 
   // --- Render Function ---
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-gray-100 dark:bg-gray-950">
+    <div className="h-full flex flex-col overflow-hidden bg-background">
+      <div className="container mx-auto flex-1 flex flex-col p-4 lg:p-6 overflow-hidden">
+        {/* Header (matches moderation page) */}
+        <div className="mb-3 flex-shrink-0 flex justify-between items-center">
+          <h1 className="text-xl lg:text-2xl font-bold">Analytics Dashboard</h1>
 
-      <main className="flex-1 overflow-y-auto p-3 lg:p-4 md:p-6 lg:p-8">
-        {/* --- Page Header --- */}
-        <h1 className="text-xl md:text-2xl lg:text-3xl font-semibold tracking-tight mb-4 lg:mb-6 text-gray-900 dark:text-gray-50 text-center sm:text-left">
-          Community Sentiment (All Time)
-        </h1>
-
-        {/* --- Loading State Placeholder Structure --- */}
-        {loading ? (
-          <div className="space-y-4 lg:space-y-6 animate-pulse">
-            {/* Stats Skeletons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 md:gap-6">
-              {[...Array(3)].map((_, i) => (
-                <Card key={i} className="border-transparent shadow-sm bg-card">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <Skeleton className="h-4 lg:h-5 w-1/3 bg-muted/50" />
-                    <Skeleton className="h-4 lg:h-5 w-5 rounded-sm bg-muted/50" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-6 lg:h-8 w-3/4 mt-1 bg-muted/50" />
-                    <Skeleton className="h-3 lg:h-4 w-1/2 mt-2 bg-muted/40" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-             {/* Chart Skeletons */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 lg:gap-4 md:gap-6">
-                {/* Line Chart Skeleton */}
-                <Card className="border-transparent shadow-sm lg:col-span-3 bg-card">
-                    <CardHeader>
-                       <Skeleton className="h-5 lg:h-6 w-1/2 bg-muted/50" />
-                       <Skeleton className="h-3 lg:h-4 w-3/4 mt-2 bg-muted/40" />
-                    </CardHeader>
-                    <CardContent className="h-[250px] lg:h-[300px] md:h-[350px] flex items-center justify-center">
-                        <Skeleton className="h-full w-full bg-muted/30" />
-                    </CardContent>
-                </Card>
-                 {/* Pie Chart Skeleton */}
-                 <Card className="border-transparent shadow-sm lg:col-span-2 bg-card">
-                     <CardHeader>
-                         <Skeleton className="h-5 lg:h-6 w-1/2 bg-muted/50" />
-                         <Skeleton className="h-3 lg:h-4 w-3/4 mt-2 bg-muted/40" />
-                     </CardHeader>
-                    <CardContent className="h-[250px] lg:h-[300px] md:h-[350px] flex items-center justify-center">
-                        <Skeleton className="h-3/4 w-3/4 rounded-full bg-muted/30" />
-                    </CardContent>
-                 </Card>
-            </div>
-          </div>
-        ) : error ? (
-          // --- Error State ---
-          <Card className="border-destructive bg-destructive/10 text-destructive max-w-2xl mx-auto">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
-                <ExclamationTriangleIcon className="w-4 h-4 lg:w-5 lg:h-5" />
-                Error Loading Analytics
-              </CardTitle>
-              <CardDescription className="text-destructive/80 pt-1">
-                We encountered a problem retrieving the sentiment data.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm mb-4">Details: {error}</p>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={loadAllTimeAnalyticsData} // Add Retry button
-              >
-                Try Again
+          {/* Refresh Action */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" onClick={loadAllTimeAnalyticsData} disabled={loading}>
+                <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <span className="sr-only">Refresh</span>
               </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          // --- Success State ---
-          <div className="space-y-4 lg:space-y-6"> {/* Use space-y for consistent vertical spacing */}
-            {/* --- Overall Stats --- */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 md:gap-6">
-              {/* Stat Card 1: Total Messages */}
-              <Card className="border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-lg overflow-hidden bg-card text-card-foreground">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 lg:pt-4 px-4 lg:px-5">
-                  <CardTitle className="text-xs lg:text-sm font-medium text-muted-foreground">Total Messages</CardTitle>
-                  <ChatBubbleLeftEllipsisIcon className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent className="pb-3 lg:pb-4 px-4 lg:px-5">
-                   {renderStatContent(stats?.total_messages, 'number')}
-                  <p className="text-xs text-muted-foreground pt-1">Total messages analyzed</p>
-                </CardContent>
-              </Card>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Refresh data</TooltipContent>
+          </Tooltip>
+        </div>
 
-              {/* Stat Card 2: Avg. Sentiment Score */}
-              <Card className="border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-lg overflow-hidden bg-card text-card-foreground">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 lg:pt-4 px-4 lg:px-5">
-                  <CardTitle className="text-xs lg:text-sm font-medium text-muted-foreground">Avg. Sentiment Score</CardTitle>
-                  <ChartBarIcon className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" /> {/* Example Icon */}
-                </CardHeader>
-                <CardContent className="pb-3 lg:pb-4 px-4 lg:px-5">
-                  {renderStatContent(stats?.average_sentiment, 'score', ' / 100')}
-                  <p className="text-xs text-muted-foreground pt-1">Overall average (-100 to +100)</p>
-                </CardContent>
-              </Card>
+        {/* Main Scrollable Area */}
+        <ScrollArea className="flex-1 overflow-hidden">
+          <div className="space-y-6">
+            {/* --- Loading & Error Handling --- */}
+            {loading ? (
+              <div className="space-y-4 lg:space-y-6 animate-pulse">
+                {/* Stats Skeletons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 md:gap-6">
+                  {[...Array(3)].map((_, i) => (
+                    <Card key={i} className="border-transparent shadow-sm bg-card">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <Skeleton className="h-4 lg:h-5 w-1/3 bg-muted/50" />
+                        <Skeleton className="h-4 lg:h-5 w-5 rounded-sm bg-muted/50" />
+                      </CardHeader>
+                      <CardContent>
+                        <Skeleton className="h-6 lg:h-8 w-3/4 mt-1 bg-muted/50" />
+                        <Skeleton className="h-3 lg:h-4 w-1/2 mt-2 bg-muted/40" />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                 {/* Chart Skeletons */}
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 lg:gap-4 md:gap-6">
+                    {/* Line Chart Skeleton */}
+                    <Card className="border-transparent shadow-sm lg:col-span-3 bg-card">
+                        <CardHeader>
+                           <Skeleton className="h-5 lg:h-6 w-1/2 bg-muted/50" />
+                           <Skeleton className="h-3 lg:h-4 w-3/4 mt-2 bg-muted/40" />
+                        </CardHeader>
+                        <CardContent className="h-[250px] lg:h-[300px] md:h-[350px] flex items-center justify-center">
+                            <Skeleton className="h-full w-full bg-muted/30" />
+                        </CardContent>
+                    </Card>
+                     {/* Pie Chart Skeleton */}
+                     <Card className="border-transparent shadow-sm lg:col-span-2 bg-card">
+                         <CardHeader>
+                             <Skeleton className="h-5 lg:h-6 w-1/2 bg-muted/50" />
+                             <Skeleton className="h-3 lg:h-4 w-3/4 mt-2 bg-muted/40" />
+                         </CardHeader>
+                        <CardContent className="h-[250px] lg:h-[300px] md:h-[350px] flex items-center justify-center">
+                            <Skeleton className="h-3/4 w-3/4 rounded-full bg-muted/30" />
+                        </CardContent>
+                     </Card>
+                </div>
+              </div>
+            ) : error ? (
+              // --- Error State ---
+              <Alert variant="destructive" className="max-w-2xl mx-auto">
+                <ExclamationTriangleIcon className="h-4 w-4" />
+                <AlertTitle>Error Loading Analytics</AlertTitle>
+                <AlertDescription className="mb-3">
+                  We encountered a problem retrieving the sentiment data. Details: {error}
+                </AlertDescription>
+                <Button size="sm" onClick={loadAllTimeAnalyticsData}>Try Again</Button>
+              </Alert>
+            ) : (
+              <>
+                {/* --- Stats Grid --- */}
+                <div className="grid gap-3 lg:gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {/* Total Messages */}
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Card className="group cursor-pointer transition-shadow hover:shadow-md">
+                        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                          <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
+                          <ChatBubbleLeftEllipsisIcon className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          {renderStatContent(stats?.total_messages, 'number')}
+                        </CardContent>
+                      </Card>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="bottom" className="w-56 text-xs text-muted-foreground">Total number of messages analyzed across your entire community.</HoverCardContent>
+                  </HoverCard>
 
-              {/* Stat Card 3: Unique Players */}
-              <Card className="border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 rounded-lg overflow-hidden bg-card text-card-foreground">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 pt-3 lg:pt-4 px-4 lg:px-5">
-                  <CardTitle className="text-xs lg:text-sm font-medium text-muted-foreground">Unique Players</CardTitle>
-                  <UsersIcon className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent className="pb-3 lg:pb-4 px-4 lg:px-5">
-                  {renderStatContent(stats?.unique_players, 'number')}
-                  <p className="text-xs text-muted-foreground pt-1">Players contributing messages</p>
-                </CardContent>
-              </Card>
-            </div>
+                  {/* Avg Sentiment */}
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Card className="group cursor-pointer transition-shadow hover:shadow-md">
+                        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                          <CardTitle className="text-sm font-medium">Avg. Sentiment</CardTitle>
+                          <ChartBarIcon className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent className="pt-0 space-y-2">
+                          {renderStatContent(stats?.average_sentiment, 'score')}
+                          {/* Progress bar scaled from -100..100 to 0..100 */}
+                          <Progress value={((stats?.average_sentiment ?? 0) + 100) / 2} />
+                        </CardContent>
+                      </Card>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="bottom" className="w-56 text-xs text-muted-foreground">A measure of positivity vs. negativity (-100 to +100). Higher is better.</HoverCardContent>
+                  </HoverCard>
 
-            {/* --- Charts Section --- */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 lg:gap-4 md:gap-6">
-              {/* Hourly Sentiment Trend */}
-              <Card className="border-border/50 shadow-sm rounded-lg lg:col-span-3 overflow-hidden bg-card text-card-foreground">
-                <CardHeader className="pb-2 pt-3 lg:pt-4 px-4 lg:px-5">
-                  <CardTitle className="text-base lg:text-lg font-medium">Hourly Sentiment Trend</CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Average sentiment score throughout the day (all time).</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[250px] lg:h-[300px] md:h-[350px] pb-3 lg:pb-4 px-2 md:px-3">
-                  {trendData.length > 1 ? (
-                    <Chart
-                      chartType="LineChart"
-                      width="100%"
-                      height="100%"
-                      data={trendData}
-                      options={lineChartOptions}
-                      // Use loader prop for built-in chart loading indicator
-                      loader={<div className="flex items-center justify-center h-full text-muted-foreground">Loading Chart...</div>}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-4 text-center">No hourly trend data available.</div>
-                  )}
-                </CardContent>
-              </Card>
+                  {/* Unique Players */}
+                  <HoverCard>
+                    <HoverCardTrigger asChild>
+                      <Card className="group cursor-pointer transition-shadow hover:shadow-md">
+                        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                          <CardTitle className="text-sm font-medium">Unique Players</CardTitle>
+                          <UsersIcon className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          {renderStatContent(stats?.unique_players, 'number')}
+                        </CardContent>
+                      </Card>
+                    </HoverCardTrigger>
+                    <HoverCardContent side="bottom" className="w-56 text-xs text-muted-foreground">Number of distinct players that have sent at least one message.</HoverCardContent>
+                  </HoverCard>
 
-              {/* Sentiment Distribution */}
-              <Card className="border-border/50 shadow-sm rounded-lg lg:col-span-2 overflow-hidden bg-card text-card-foreground">
-                <CardHeader className="pb-2 pt-3 lg:pt-4 px-4 lg:px-5">
-                  <CardTitle className="text-base lg:text-lg font-medium">Sentiment Distribution</CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">Breakdown of messages by category.</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[250px] lg:h-[300px] md:h-[350px] pb-3 lg:pb-4 px-2 md:px-3 flex flex-col items-center justify-center">
-                  {distributionData.length > 1 && (distributionData.slice(1).reduce((sum, row) => sum + (row[1] as number), 0) > 0) ? ( // Check if there's actual data > 0
-                    <Chart
-                      chartType="PieChart"
-                      width="100%"
-                      height="100%"
-                      data={distributionData}
-                      options={pieChartOptions}
-                      loader={<div className="flex items-center justify-center h-full text-muted-foreground">Loading Chart...</div>}
-                    />
-                  ) : (
-                     <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-4 text-center">No sentiment distribution data available.</div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                  {/* Sentiment Badge Stat */}
+                  <Card className="flex flex-col items-center justify-center border-dashed border-2 border-muted-foreground/30 text-sm text-muted-foreground">
+                    <p className="mb-1">Overall Sentiment</p>
+                    {stats && (
+                      <Badge
+                        className={
+                          stats.average_sentiment > 20
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : stats.average_sentiment < -20
+                            ? 'bg-red-600 hover:bg-red-700 text-white'
+                            : 'bg-gray-500 hover:bg-gray-600 text-white'
+                        }
+                      >
+                        {stats.average_sentiment > 20 ? 'Positive' : stats.average_sentiment < -20 ? 'Negative' : 'Neutral'}
+                      </Badge>
+                    )}
+                  </Card>
+                </div>
+
+                {/* --- Charts Grid --- */}
+                <div className="grid gap-3 lg:gap-4 xl:grid-cols-3">
+                  {/* Line Chart Card (takes 2 cols on XL) */}
+                  <Card className="xl:col-span-2">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base lg:text-lg">Hourly Sentiment Trend</CardTitle>
+                      <CardDescription className="text-xs lg:text-sm">Average sentiment score throughout the day.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[280px] lg:h-[320px] p-2">
+                      {trendChartData.length ? (
+                        <ChartContainer className="w-full h-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={trendChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="sentimentGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor={LINE_CHART_COLOR[0]} stopOpacity={0.3} />
+                                  <stop offset="95%" stopColor={LINE_CHART_COLOR[0]} stopOpacity={0} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E180" vertical={false} />
+                              <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} />
+                              <YAxis domain={[-100, 100]} stroke="hsl(var(--muted-foreground))" tick={{ fontSize: 10 }} tickCount={5} />
+                              <RechartsTooltip wrapperClassName="text-xs" />
+                              <Area type="monotone" dataKey="avg" stroke="none" fill="url(#sentimentGradient)" />
+                              <Line type="monotone" dataKey="avg" stroke={LINE_CHART_COLOR[0]} strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 4 }} />
+                              <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 2" />
+                              <ReferenceLine y={50} stroke="#94A3B8" strokeDasharray="3 3" />
+                              <ReferenceLine y={-50} stroke="#94A3B8" strokeDasharray="3 3" />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </ChartContainer>
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground text-sm">No data available.</div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Pie Chart Card */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle>Sentiment Distribution</CardTitle>
+                      <CardDescription className="text-xs">Breakdown of messages by sentiment.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[280px] lg:h-[320px] p-2 flex items-center justify-center">
+                      {distributionChartData.length ? (
+                        <ChartContainer className="w-full h-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <RechartsTooltip wrapperClassName="text-xs" />
+                              <Legend verticalAlign="bottom" height={36} />
+                              <Pie
+                                data={distributionChartData}
+                                dataKey="count"
+                                nameKey="sentiment"
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={80}
+                                innerRadius={40}
+                                paddingAngle={4}
+                                labelLine={false}
+                                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                              >
+                                {distributionChartData.map((_, index) => (
+                                  <Cell key={`cell-${index}`} fill={PIE_CHART_COLORS[index % PIE_CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </ChartContainer>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">No data available.</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
           </div>
-        )}
-      </main>
+        </ScrollArea>
+      </div>
     </div>
   );
 }
