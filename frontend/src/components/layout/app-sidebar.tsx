@@ -23,7 +23,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { NavMain } from "./nav-main"
-import { NavSecondary } from "./nav-secondary"
 import { NavUser } from "./nav-user"
 
 const BloomLogo = ({ className }: { className?: string }) => (
@@ -68,9 +67,6 @@ const data = {
       icon: IconUsers,
     },
   ],
-  navSecondary: [
-    // Removed Settings, Get Help, and dark mode switch
-  ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -93,7 +89,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        {/* navSecondary is now empty, so don't render it */}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
