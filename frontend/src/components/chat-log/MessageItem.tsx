@@ -3,18 +3,19 @@
 import { useState, useMemo } from 'react';
 import { useAvatarHeadshot } from '@/hooks/useAvatarHeadshot';
 import { Message } from '@/types/sentiment';
+import PlayerDetailsDialog from '@/components/chat-log/PlayerDetailsDialog';
 
 interface MessageItemProps {
     msg: Message;
 }
 
-// Helper function for sentiment color
-const getSentimentColor = (score: number) => {
-    if (score >= 75) return 'bg-green-500';
-    if (score >= 25) return 'bg-green-300';
-    if (score > -25) return 'bg-gray-300';
-    if (score > -75) return 'bg-red-300';
-    return 'bg-red-500';
+// Helper for badge background
+const getSentimentBadgeBg = (score: number) => {
+    if (score >= 75) return 'bg-green-600';
+    if (score >= 25) return 'bg-green-500';
+    if (score > -25) return 'bg-gray-500';
+    if (score > -75) return 'bg-red-500';
+    return 'bg-red-600';
 };
 
 // Generate initials from player name
@@ -33,6 +34,7 @@ export default function MessageItem({ msg }: MessageItemProps) {
     // Get the avatar URL using the hook
     const { url: avatarUrl, loading } = useAvatarHeadshot(msg.player_id?.toString());
     const [avatarError, setAvatarError] = useState(false);
+    const [showDialog, setShowDialog] = useState(false);
     
     // Generate player avatar details for fallback
     const avatarDetails = useMemo(() => {
@@ -62,41 +64,47 @@ export default function MessageItem({ msg }: MessageItemProps) {
         }
     }, [msg.created_at]);
 
-    return (
-        <div className="flex flex-col gap-2 p-4 rounded-lg bg-white shadow-sm hover:bg-gray-50 transition-colors border border-gray-100">
-            <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    {/* Avatar with animated loading state */}
-                    {loading ? (
-                        <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
-                    ) : showAvatar ? (
-                        <img
-                            src={avatarUrl}
-                            alt={`${msg.player_name}'s avatar`}
-                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-200" 
-                            onError={handleImageError}
-                        />
-                    ) : (
-                        // Fallback avatar with initials and consistent color
-                        <div className={`w-10 h-10 rounded-full ${avatarDetails.color} flex items-center justify-center text-white font-medium text-sm`}>
-                            {avatarDetails.initials}
-                        </div>
-                    )}
+    const handleClick = () => {
+        setShowDialog(true);
+    };
 
-                    <div className="flex flex-col">
-                        <span className="font-semibold text-gray-800">{msg.player_name}</span>
-                        <span className="text-xs text-gray-500">{formattedTime}</span>
+    return (
+        <>
+            <div
+                className="flex flex-col gap-2 p-3 lg:p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 cursor-pointer"
+                onClick={handleClick}
+            >
+                <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-3">
+                        {loading ? (
+                            <div className="w-9 h-9 rounded-full bg-gray-200 animate-pulse" />
+                        ) : showAvatar ? (
+                            <img
+                                src={avatarUrl}
+                                alt={`${msg.player_name}'s avatar`}
+                                className="w-9 h-9 rounded-full object-cover border border-gray-300"
+                                onError={handleImageError}
+                            />
+                        ) : (
+                            <div className={`w-9 h-9 rounded-full ${avatarDetails.color} flex items-center justify-center text-white font-medium text-sm`}>
+                                {avatarDetails.initials}
+                            </div>
+                        )}
+                        <div>
+                            <p className="font-medium text-gray-800 text-sm">{msg.player_name}</p>
+                            <p className="text-xs text-gray-500">{formattedTime}</p>
+                        </div>
                     </div>
+                    <span className={`${getSentimentBadgeBg(msg.sentiment_score)} text-white text-[10px] font-bold px-2 py-0.5 rounded-full`}>{msg.sentiment_score > 0 ? '+' : ''}{msg.sentiment_score}</span>
                 </div>
-                
-                <div
-                    className={`${getSentimentColor(msg.sentiment_score)} text-white text-xs font-bold px-3 py-1 rounded-full`}
-                >
-                    {msg.sentiment_score > 0 ? '+' : ''}{msg.sentiment_score}
-                </div>
+                <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{msg.message}</p>
             </div>
             
-            <div className="mt-1 text-gray-700 pl-13">{msg.message}</div>
-        </div>
+            <PlayerDetailsDialog 
+                message={msg}
+                isOpen={showDialog}
+                onClose={() => setShowDialog(false)}
+            />
+        </>
     );
 }

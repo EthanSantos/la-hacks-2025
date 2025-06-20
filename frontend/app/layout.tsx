@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
-
-const inter = Inter({ subsets: ['latin'] })
+import { AppSidebar } from '@/components/layout/app-sidebar';
+import { SiteHeader } from '@/components/layout/site-header';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 
 export const metadata: Metadata = {
   title: 'Sentiment Analyzer',
@@ -16,7 +16,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className="h-screen overflow-hidden">
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset className="flex flex-col h-screen">
+            <SiteHeader />
+            <main className="flex-1 overflow-hidden">
+              {children}
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </body>
     </html>
   )
 }
