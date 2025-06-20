@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   IconChartBar,
   IconDashboard,
@@ -83,10 +84,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="/">
+              <Link href="/" className="flex items-center gap-2">
                 <BloomLogo className="!size-5" />
                 <span className="text-xl font-semibold" style={{ fontFamily: 'ClashGrotesk, system-ui, sans-serif' }}>Bloom</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

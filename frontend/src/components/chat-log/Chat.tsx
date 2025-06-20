@@ -4,13 +4,6 @@ import React from 'react';
 import { useEffect, useCallback, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-} from '@/components/ui/dropdown-menu';
 import { Filter, Smile, Meh, Frown, MessageCircle, Search } from 'lucide-react';
 import { useLiveMessages } from '@/hooks/useLiveMessages';
 import MessageItem from '@/components/chat-log/MessageItem';
@@ -18,7 +11,6 @@ import MessageItem from '@/components/chat-log/MessageItem';
 export default function ChatLog({ title = "Live Chat Log" }) {
     const { messages, error, loading, fetchMessages } = useLiveMessages();
 
-    const [filter, setFilter] = useState<'all' | 'positive' | 'neutral' | 'negative'>('all');
     const [search, setSearch] = useState('');
 
     // Manual refresh handler
@@ -33,29 +25,15 @@ export default function ChatLog({ title = "Live Chat Log" }) {
         return () => clearInterval(interval);
     }, [fetchMessages]);
 
-    // Filtered list
-    const sentimentFiltered = useMemo(() => {
-        switch (filter) {
-            case 'positive':
-                return messages.filter(m => m.sentiment_score > 25);
-            case 'neutral':
-                return messages.filter(m => m.sentiment_score >= -25 && m.sentiment_score <= 25);
-            case 'negative':
-                return messages.filter(m => m.sentiment_score < -25);
-            default:
-                return messages;
-        }
-    }, [messages, filter]);
-
     const filteredMessages = useMemo(() => {
-        if (!search.trim()) return sentimentFiltered;
+        if (!search.trim()) return messages;
         const query = search.toLowerCase();
-        return sentimentFiltered.filter(m =>
+        return messages.filter(m =>
             m.message.toLowerCase().includes(query) ||
             m.player_name.toLowerCase().includes(query) ||
             m.player_id?.toString().includes(query)
         );
-    }, [sentimentFiltered, search]);
+    }, [messages, search]);
 
     // Helper to label dates
     const isSameDay = (d1: Date, d2: Date) =>
@@ -119,31 +97,6 @@ export default function ChatLog({ title = "Live Chat Log" }) {
                         className="h-9 pl-9 w-full text-sm"
                       />
                     </div>
-
-                    {/* Filter dropdown */}
-                    <DropdownMenu value={filter} onValueChange={setFilter as any}>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-9 w-9">
-                          <Filter className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuRadioGroup value={filter} onValueChange={setFilter as any}>
-                          <DropdownMenuRadioItem value="all" className="flex items-center gap-2">
-                              <MessageCircle className="h-3 w-3" /> All
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="positive" className="flex items-center gap-2">
-                              <Smile className="h-3 w-3 text-green-500" /> Positive
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="neutral" className="flex items-center gap-2">
-                              <Meh className="h-3 w-3 text-gray-500" /> Neutral
-                          </DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="negative" className="flex items-center gap-2">
-                              <Frown className="h-3 w-3 text-red-500" /> Negative
-                          </DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                 </div>
             </div>
 
