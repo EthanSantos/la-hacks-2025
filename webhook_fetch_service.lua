@@ -31,6 +31,29 @@ function WebhookFetchService.FetchFromMessage(data)
 		--print("Message: " .. message)
 		--print("Sentiment Score: " .. responseData.sentiment_score)
 		warn('Response data', responseData)
+		
+		-- Check for moderation action
+		if responseData.moderation_action then
+			local action = responseData.moderation_action:lower()
+			local reason = responseData.moderation_reason or "Inappropriate behavior"
+			
+			warn("Moderation Action:", action)
+			warn("Reason:", reason)
+			
+			if action == "kick" then
+				warn("Kicking player:", plr.Name)
+				plr:Kick("KICKED: " .. reason .. "\n\nYou have been kicked for violating community guidelines.")
+			elseif action == "warning" then
+				warn("Warning player:", plr.Name)
+				warn("WARNING for", plr.Name, ":", reason)
+			elseif action == "ban" then
+				warn("Banning player:", plr.Name)
+				plr:Kick("BANNED: " .. reason .. "\n\nYou have been banned for serious violations.")
+			end
+		else
+			warn("No moderation action required")
+		end
+		
 		return responseData
 	else
 		warn("AI Analysis Request Failed: " .. tostring(response), response)
