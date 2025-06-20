@@ -12,6 +12,7 @@ import {
   IconMessage,
   IconHistory,
 } from "@tabler/icons-react"
+import Link from "next/link"
 
 import {
   Sidebar,
@@ -79,10 +80,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="/">
-                <BloomLogo className="!size-5" />
-                <span className="text-xl font-semibold" style={{ fontFamily: 'ClashGrotesk, system-ui, sans-serif' }}>Bloom</span>
-              </a>
+              <Link href="/" className="flex items-center gap-2 group">
+                <BloomLogo className="h-7 w-7" />
+                <span className="font-bold text-lg tracking-tight">Bloom</span>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

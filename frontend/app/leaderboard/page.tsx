@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trophy, MessageSquare, TrendingUp, BarChart2, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 
 const LeaderboardPage = () => {
   const [topPlayers, setTopPlayers] = useState<TopPlayer[]>([]);
@@ -257,9 +258,11 @@ const PlayerRow = ({ player, rank }: PlayerRowProps) => {
           {avatarLoading ? (
             <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse"></div>
           ) : avatarUrl && !avatarError ? (
-            <img 
+            <Image 
               src={avatarUrl} 
               alt={`${player.player_name}'s avatar`}
+              width={40}
+              height={40}
               className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
               onError={(e) => (e.currentTarget.style.display = 'none')}
             />

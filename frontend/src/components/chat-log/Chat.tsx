@@ -14,6 +14,7 @@ import {
 import { Filter, Smile, Meh, Frown, MessageCircle, Search } from 'lucide-react';
 import { useLiveMessages } from '@/hooks/useLiveMessages';
 import MessageItem from '@/components/chat-log/MessageItem';
+import { supabase } from '@/lib/supabase';
 
 export default function ChatLog({ title = "Live Chat Log" }) {
     const { messages, error, loading, fetchMessages } = useLiveMessages();
@@ -26,12 +27,16 @@ export default function ChatLog({ title = "Live Chat Log" }) {
         fetchMessages(true);
     }, [fetchMessages]);
 
+    const fetchStats = useCallback(async () => {
+    }, []);
+
     // Polling
     useEffect(() => {
-        fetchMessages(true);
-        const interval = setInterval(() => fetchMessages(false), 10000);
-        return () => clearInterval(interval);
-    }, [fetchMessages]);
+        if (!messages || messages.length === 0) {
+            fetchMessages(true);
+        }
+        fetchStats();
+    }, [fetchMessages, fetchStats, messages]);
 
     // Filtered list
     const sentimentFiltered = useMemo(() => {
@@ -94,6 +99,27 @@ export default function ChatLog({ title = "Live Chat Log" }) {
         return elements;
     };
 
+    useEffect(() => {
+        const messagesSubscription = supabase
+            .channel('public:messages')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+                fetchStats();
+            })
+            .subscribe();
+
+        const playersSubscription = supabase
+            .channel('public:players')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
+                fetchStats();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(messagesSubscription);
+            supabase.removeChannel(playersSubscription);
+        };
+    }, [fetchStats]);
+
     return (
         <div className="h-full flex flex-col overflow-hidden border border-gray-200 rounded-lg bg-white">
             {/* Header */}
@@ -121,7 +147,7 @@ export default function ChatLog({ title = "Live Chat Log" }) {
                     </div>
 
                     {/* Filter dropdown */}
-                    <DropdownMenu value={filter} onValueChange={setFilter as any}>
+                    <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="outline" size="icon" className="h-9 w-9">
                           <Filter className="h-4 w-4" />

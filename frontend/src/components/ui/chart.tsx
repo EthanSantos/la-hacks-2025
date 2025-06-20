@@ -1,9 +1,7 @@
 import * as React from 'react'
 import { cn } from '@/lib/utils'
 
-export interface ChartContainerProps extends React.HTMLAttributes<HTMLDivElement> {}
-
-export function ChartContainer({ className, children, ...props }: ChartContainerProps) {
+export function ChartContainer({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn('relative w-full h-full', className)} {...props}>
       {children}
