@@ -41,11 +41,8 @@ class ContentType(str, Enum):
 
 class ActionType(str, Enum):
     WARNING = "WARNING"
-    MUTE = "MUTE"
     KICK = "KICK"
     BAN = "BAN"
-    DELETE_MESSAGE = "DELETE_MESSAGE"
-    ACCOUNT_RESTRICTION = "ACCOUNT_RESTRICTION"
 
 
 # ---------- Pydantic Models ----------
@@ -70,3 +67,4 @@ class ModerationState(BaseModel):
     pii_result: Optional[PIIResult] = None
     content_result: Optional[ContentResult] = None
     recommended_action: Optional[ModAction] = None
+    flag: bool = False  # New field to indicate if message should be flagged for human review

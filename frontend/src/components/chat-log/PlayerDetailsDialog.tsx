@@ -25,6 +25,7 @@ import {
   Ban,
   History
 } from 'lucide-react';
+import { moderationApi } from '@/lib/api/sentiment';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -50,6 +51,7 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
   const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [playerMessages, setPlayerMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [moderationLoading, setModerationLoading] = useState<string | null>(null);
 
   const { url: avatarUrl } = useAvatarHeadshot(message?.player_id?.toString());
 
@@ -109,6 +111,37 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const handleModerationAction = async (action: string) => {
+    if (!message?.player_id) return;
+    
+    setModerationLoading(action);
+    try {
+      const reason = prompt(`Enter reason for ${action}:`);
+      if (!reason) {
+        setModerationLoading(null);
+        return;
+      }
+      
+      const result = await moderationApi.performAction({
+        player_id: message.player_id,
+        action,
+        reason
+      });
+      
+      if (result.success) {
+        console.log(`Successfully ${action}ed player ${message.player_name}`);
+        onClose();
+      } else {
+        console.error(`Failed to ${action} player: ${result.error}`);
+      }
+    } catch (error) {
+      console.error(`Moderation action failed:`, error);
+      console.error(`Failed to ${action} player`);
+    } finally {
+      setModerationLoading(null);
+    }
   };
 
   if (!message) return null;
@@ -286,28 +319,31 @@ export default function PlayerDetailsDialog({ message, isOpen, onClose }: Player
                     variant="outline" 
                     className="w-full justify-start text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50" 
                     size="sm"
-                    onClick={() => console.log('Warn player:', message.player_id)}
+                    onClick={() => handleModerationAction('warn')}
+                    disabled={moderationLoading !== null}
                   >
                     <AlertTriangle className="h-3 w-3 mr-2" />
-                    Warn Player
+                    {moderationLoading === 'warn' ? 'Warning...' : 'Warn Player'}
                   </Button>
                   <Button 
                     variant="outline" 
                     className="w-full justify-start text-orange-600 hover:text-orange-700 hover:bg-orange-50" 
                     size="sm"
-                    onClick={() => console.log('Kick player:', message.player_id)}
+                    onClick={() => handleModerationAction('kick')}
+                    disabled={moderationLoading !== null}
                   >
                     <UserX className="h-3 w-3 mr-2" />
-                    Kick Player
+                    {moderationLoading === 'kick' ? 'Kicking...' : 'Kick Player'}
                   </Button>
                   <Button 
                     variant="outline" 
                     className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border-red-600" 
                     size="sm"
-                    onClick={() => console.log('Ban player:', message.player_id)}
+                    onClick={() => handleModerationAction('ban')}
+                    disabled={moderationLoading !== null}
                   >
                     <Ban className="h-3 w-3 mr-2" />
-                    Ban Player
+                    {moderationLoading === 'ban' ? 'Banning...' : 'Ban Player'}
                   </Button>
                 </CardContent>
               </Card>

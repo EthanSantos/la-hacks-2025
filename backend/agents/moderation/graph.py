@@ -1,36 +1,35 @@
-from pydantic_graph import Graph
+import logging
 from typing import Optional
+from .state import ModerationState
+from .nodes import StartModeration
 
-from .state import ChatMessage, ModerationState, ModAction, ActionType
-from .nodes import (
-    StartModeration,
-    DetectPII,
-    CheckIntent,
-    ModerateContent,
-    DetermineAction,
-)
+logger = logging.getLogger(__name__)
 
-# ---------- Graph Definition ----------
-moderation_graph = Graph(
-    nodes=[StartModeration, DetectPII, CheckIntent, ModerateContent, DetermineAction],
-    state_type=ModerationState,
-)
-
-
-# ---------- Main Function ----------
-async def moderate_message(message: ChatMessage) -> ModerationState:
-    """Main function to moderate a chat message"""
-    state = ModerationState(message=message)
-
+async def moderate_message(message) -> ModerationState:
+    """
+    Main moderation function that analyzes a message and returns moderation state
+    """
     try:
-        result = await moderation_graph.run(StartModeration(), state=state)
-        print(f"Graph execution completed: {result}")
-        return state  # Return the full state, not just recommended_action
+        # Create initial state
+        state = ModerationState(message=message)
+        
+        # Run moderation analysis
+        start_node = StartModeration()
+        result_state = await start_node.run(state)
+        
+        logger.info(f"Moderation completed for message {message.message_id}")
+        logger.info(f"Action: {result_state.recommended_action.action.value if result_state.recommended_action else 'None'}")
+        logger.info(f"Flagged: {result_state.flag}")
+        
+        return result_state
+        
     except Exception as e:
-        print(f"Moderation error: {e}")
-        # Return a state with fallback action
-        state.recommended_action = ModAction(
-            action=ActionType.WARNING,
-            reason="Moderation system error - manual review required",
-        )
+        logger.error(f"Error in moderate_message: {e}")
+        # Return default state with error handling
+        state = ModerationState(message=message)
+        state.recommended_action = None
+        state.flag = True  # Flag for manual review on error
         return state
+
+# Keep the old graph for backward compatibility
+moderation_graph = None

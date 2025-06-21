@@ -12,6 +12,7 @@ import {
   IconStack2,
   IconMessage,
   IconHistory,
+  IconAlertTriangle,
 } from "@tabler/icons-react"
 
 import {
@@ -57,6 +58,11 @@ const data = {
       title: "Moderation",
       url: "/moderation",
       icon: IconListDetails,
+    },
+    {
+      title: "Flagged Messages",
+      url: "/flagged",
+      icon: IconAlertTriangle,
     },
     {
       title: "Analytics",

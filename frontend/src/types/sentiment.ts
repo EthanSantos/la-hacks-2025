@@ -14,6 +14,7 @@ export interface Message {
     created_at: string;
     moderation_action?: string;
     moderation_reason?: string;
+    flag?: boolean;
 }
 
 export interface SentimentAnalysisRequest {
@@ -29,18 +30,25 @@ export interface SentimentAnalysisResponse {
     message_id: string;
     message: string;
     sentiment_score: number;
+    moderation_passed: boolean;
+    blocked: boolean;
+    moderation_action?: string;
+    moderation_reason?: string;
     sentiment_details?: {
-        confidence?: number;
-        emotion?: string;
-        toxicity_score?: number;
+        positive_score: number;
+        negative_score: number;
+        neutral_score: number;
+        overall_sentiment: string;
     };
     community_intent?: {
-        intent_type?: string;
-        reason?: string;
+        intent: string;
+        confidence: number;
+        suggestions: string[];
     };
     rewards?: {
-        points_awarded: number;
-        reason: string;
+        points: number;
+        badges: string[];
+        level_up: boolean;
     };
     error?: string;
 }
@@ -113,4 +121,68 @@ export interface SentimentTrendPoint {
     message_count: number;
     average_sentiment: number;
   }
+  
+export interface SentimentTrendData {
+    date: string;
+    positive_count: number;
+    negative_count: number;
+    neutral_count: number;
+    total_messages: number;
+    average_sentiment: number;
+}
+
+export interface SentimentDistributionData {
+    category: string;
+    count: number;
+    percentage: number;
+}
+
+export interface OverallStatsData {
+    total_messages: number;
+    unique_players: number;
+    average_sentiment: number;
+    positive_percentage: number;
+    negative_percentage: number;
+    neutral_percentage: number;
+}
+
+export interface ModerationActionRequest {
+    player_id: number;
+    action: string; // "warn", "kick", "ban"
+    reason: string;
+    game_id?: number;
+}
+
+export interface ModerationActionResponse {
+    success: boolean;
+    action: string;
+    player_id: number;
+    reason: string;
+    error?: string;
+    roblox_response?: any;
+}
+
+export interface FlaggedMessage {
+    message_id: string;
+    player_id: number;
+    player_name: string;
+    message: string;
+    sentiment_score: number;
+    created_at: string;
+    moderation_action?: string;
+    moderation_reason?: string;
+    flag: boolean;
+}
+
+export interface MessageReviewRequest {
+    action: string; // "approve", "warn", "kick", "ban"
+    reason?: string;
+}
+
+export interface MessageReviewResponse {
+    success: boolean;
+    message_id: string;
+    action: string;
+    reason?: string;
+}
   
