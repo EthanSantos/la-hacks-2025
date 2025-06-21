@@ -92,9 +92,19 @@ export function useSentiment() {
                 blocked: false, // Default to false since moderation is running in background
                 moderation_action: undefined,
                 moderation_reason: undefined,
-                sentiment_details: data.sentiment_details,
-                community_intent: data.community_intent,
-                rewards: data.rewards,
+                sentiment_details: data.sentiment_details ? {
+                    confidence: data.sentiment_details.positive_score + data.sentiment_details.negative_score + data.sentiment_details.neutral_score,
+                    emotion: data.sentiment_details.overall_sentiment,
+                    toxicity_score: data.sentiment_details.negative_score
+                } : undefined,
+                community_intent: data.community_intent ? {
+                    intent_type: data.community_intent.intent,
+                    reason: data.community_intent.suggestions.join(', ')
+                } : undefined,
+                rewards: data.rewards ? {
+                    points_awarded: data.rewards.points,
+                    reason: data.rewards.badges.join(', ')
+                } : undefined,
                 error: data.error
             };
 

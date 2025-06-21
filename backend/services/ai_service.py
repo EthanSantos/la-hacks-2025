@@ -40,10 +40,17 @@ class AIService:
             self.logger.info(f"Starting moderation for message {message_id}")
             moderation_result = await moderate_message(chat_message)
             
+            # Debug logging for moderation results
+            self.logger.info(f"Moderation result: {moderation_result}")
+            self.logger.info(f"Recommended action: {moderation_result.recommended_action}")
+            if moderation_result.recommended_action:
+                self.logger.info(f"Action type: {moderation_result.recommended_action.action.value}")
+                self.logger.info(f"Action reason: {moderation_result.recommended_action.reason}")
+            
             # Check if message should be blocked (fix ActionType usage)
             is_blocked = (
                 moderation_result.recommended_action and 
-                moderation_result.recommended_action.action in [ActionType.DELETE_MESSAGE, ActionType.BAN, ActionType.KICK]
+                moderation_result.recommended_action.action in [ActionType.BAN, ActionType.KICK]
             )
             
             if is_blocked:

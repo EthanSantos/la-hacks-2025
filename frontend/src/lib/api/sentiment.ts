@@ -1,7 +1,25 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
-import { Player, Message, SentimentAnalysisRequest, SentimentAnalysisResponse, TopPlayer, OverallStats, SentimentTrendPoint, SentimentDistributionSlice } from '@/types/sentiment';
+import { 
+    Player, 
+    Message, 
+    SentimentAnalysisRequest, 
+    SentimentAnalysisResponse, 
+    TopPlayer, 
+    OverallStats, 
+    SentimentTrendPoint, 
+    SentimentDistributionSlice,
+    ModerationActionRequest,
+    ModerationActionResponse,
+    FlaggedMessage,
+    MessageReviewRequest,
+    MessageReviewResponse
+} from '@/types/sentiment';
 import { getApiUrl } from '@/config/api';
+
+// API configuration
+const API_BASE_URL = getApiUrl();
+const API_KEY = process.env.NEXT_PUBLIC_ROBLOX_API_KEY || '';
 
 class SentimentAnalysisClient {
     private client: AxiosInstance;
@@ -209,3 +227,60 @@ export const sentimentApi = new SentimentAnalysisClient(
 
 // Export the class for custom instantiation if needed
 export { SentimentAnalysisClient };
+
+// Moderation API functions
+export const moderationApi = {
+  async performAction(request: ModerationActionRequest): Promise<ModerationActionResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/moderate/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': API_KEY || '',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Moderation action failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  async getFlaggedMessages(limit: number = 50): Promise<FlaggedMessage[]> {
+    const response = await fetch(`${API_BASE_URL}/api/messages/flagged?limit=${limit}`, {
+      headers: {
+        'X-API-Key': API_KEY || '',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch flagged messages: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  async reviewMessage(messageId: string, request: MessageReviewRequest): Promise<MessageReviewResponse> {
+    const params = new URLSearchParams({
+      action: request.action,
+    });
+    
+    if (request.reason) {
+      params.append('reason', request.reason);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/messages/${messageId}/review?${params}`, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': API_KEY || '',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to review message: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+};

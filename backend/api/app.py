@@ -16,10 +16,33 @@ import logging
 from dotenv import load_dotenv
 import asyncio
 
+# Helper function to clean AI service response
+def clean_ai_response(response):
+    """Clean the AI service response to remove any non-serializable objects"""
+    if not isinstance(response, dict):
+        return {"sentiment_score": 0, "error": "Invalid response format"}
+    
+    # Extract only the fields we need
+    cleaned = {
+        "sentiment_score": response.get("sentiment_score", 0),
+        "error": response.get("error")
+    }
+    
+    # Add moderation info if present
+    if "moderation_action" in response:
+        cleaned["moderation_action"] = response["moderation_action"]
+    if "moderation_reason" in response:
+        cleaned["moderation_reason"] = response["moderation_reason"]
+    
+    return cleaned
+
 # Import the new AI service
 from services.chat_service import ChatService
 from models.chat import ChatMessage
 from services.ai_service import ai_service
+
+# Import the Roblox service
+from services.roblox_service import roblox_service
 
 env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(dotenv_path=env_path)
@@ -72,8 +95,6 @@ class AnalyzeRequest(BaseModel):
     player_id: Optional[int] = None
     player_name: Optional[str] = None
 
-
-
 # Simple response for Roblox - just sentiment data
 class SentimentResponse(BaseModel):
     player_id: int
@@ -81,6 +102,8 @@ class SentimentResponse(BaseModel):
     message_id: str
     message: str
     sentiment_score: int
+    moderation_action: Optional[str] = None
+    moderation_reason: Optional[str] = None
     error: Optional[str] = None
 
 # Full response for frontend - includes moderation data
@@ -105,36 +128,47 @@ async def run_background_moderation(chat_message: ChatMessage, message_id: str, 
     try:
         logger.info(f"Starting background moderation for message {message_id}")
         
-        # Run moderation
         chat_service = ChatService()
         moderation_state = await chat_service.moderation_service.moderate_chat_message(chat_message)
         
-        # Check if moderation found issues
+        from agents.moderation import ActionType
+        
+        # If the AI recommends an action, proceed.
         if moderation_state.recommended_action:
-            logger.info(f"Moderation action recommended: {moderation_state.recommended_action.action.value}")
+            action = moderation_state.recommended_action.action
+            reason = moderation_state.recommended_action.reason
             
-            # Update the message in database with moderation results
-            try:
-                update_data = {
-                    "moderation_action": moderation_state.recommended_action.action.value,
-                    "moderation_reason": moderation_state.recommended_action.reason
-                }
-                
-                supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
-                logger.info(f"Updated message {message_id} with moderation results")
-                
-                # Check if message should be flagged for deletion
-                from agents.moderation import ActionType
-                if moderation_state.recommended_action.action in [ActionType.DELETE_MESSAGE, ActionType.BAN, ActionType.KICK]:
-                    logger.warning(f"Message {message_id} flagged for {moderation_state.recommended_action.action.value}")
-                    
-            except Exception as db_error:
-                logger.error(f"Failed to update moderation results in database: {db_error}")
+            logger.info(f"AI recommended action: {action.value} for message {message_id}")
+
+            # Log this action to the permanent moderation_actions table
+            moderation_record = {
+                "player_id": player_id,
+                "message_id": message_id,
+                "action": action.value.lower(),
+                "reason": reason,
+                "performed_by": "ai",
+                "success": True,  # Action was determined by AI
+                "error": None
+            }
+            supabase.table('moderation_actions').insert(moderation_record).execute()
+            logger.info(f"AI action '{action.value}' logged to moderation_actions.")
+
+            # Update the message with AI action
+            update_data = {
+                "moderation_action": action.value,
+                "moderation_reason": reason,
+                "flag": action == ActionType.BAN  # Only flag bans for human review
+            }
+            supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
+            logger.info(f"Message {message_id} updated with AI action. Flagged: {action == ActionType.BAN}")
+            
         else:
             logger.info(f"No moderation issues found for message {message_id}")
-            
+
     except Exception as e:
         logger.error(f"Background moderation failed for message {message_id}: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
 
 # Dependency for API key validation
 async def verify_api_key(request: Request):
@@ -145,6 +179,18 @@ async def verify_api_key(request: Request):
             logger.info("Unauthorized access attempt - invalid API key")
             raise HTTPException(status_code=401, detail="Unauthorized")
 
+# Dependency for Roblox Platform API key validation
+async def verify_roblox_platform_key(request: Request):
+    roblox_platform_key = os.environ.get("ROBLOX_PLATFORM_API_KEY")
+    if roblox_platform_key:
+        api_key = request.headers.get('X-API-Key')
+        logger.info(f"Roblox Platform API Key authentication: {'Success' if api_key == roblox_platform_key else 'Failed'}")
+        if not api_key or api_key != roblox_platform_key:
+            logger.info("Unauthorized access attempt - invalid Roblox Platform API key")
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    else:
+        raise HTTPException(status_code=500, detail="Roblox Platform API key not configured")
+
 @app.get("/")
 async def home():
     logger.info("Home endpoint accessed")
@@ -153,15 +199,13 @@ async def home():
         "status": "success"
     }
 
-
-
 @app.post("/api/analyze", response_model=SentimentResponse)
 async def analyze_sentiment_with_background_moderation(
     request_data: AnalyzeRequest,
     _: None = Depends(verify_api_key)
 ):
     """
-    Returns sentiment analysis immediately, runs moderation in background
+    Returns sentiment analysis immediately with moderation action, runs additional moderation in background
     """
     user_message = request_data.message
     message_id = request_data.message_id
@@ -178,7 +222,7 @@ async def analyze_sentiment_with_background_moderation(
     logger.info(f"Message to analyze: {user_message}")
     
     try:
-        # Create ChatMessage object
+        # Create chat message for analysis
         chat_message = ChatMessage(
             message_id=message_id,
             content=user_message,
@@ -187,72 +231,128 @@ async def analyze_sentiment_with_background_moderation(
             deleted=False
         )
         
-        # Run ONLY sentiment analysis for Roblox compatibility
-        chat_service = ChatService()
-        sentiment_result = await chat_service.sentiment_service.analyze_message_sentiment(
-            chat_message, player_name
-        )
-        
-        # Extract sentiment score
-        sentiment_score = 0
-        if sentiment_result and sentiment_result.chat_analysis:
-            sentiment_score = sentiment_result.chat_analysis.sentiment_score or 0
-        
-        logger.info(f"Sentiment analysis completed with score: {sentiment_score}")
-        
-        # Store the data in supabase
+        # Run sentiment analysis with moderation
         try:
-            # Store player data
-            player_data = {
-                "player_id": player_id,
-                "player_name": player_name,
-                "last_seen": datetime.now(timezone.utc).isoformat()
-            }
+            sentiment_result = await ai_service.analyze_message_with_moderation(
+                user_message, message_id, player_id, player_name
+            )
             
-            player_response = supabase.table('players').upsert(player_data).execute()
-            logger.info(f"Player data stored/updated in Supabase")
+            # Clean the response to remove any datetime objects
+            cleaned_result = clean_ai_response(sentiment_result)
+            logger.info(f"Cleaned AI result: {cleaned_result}")
             
-            # Store the message data
-            message_data = {
-                "message_id": message_id,
-                "player_id": player_id,
-                "message": user_message,
-                "sentiment_score": sentiment_score,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
+        except Exception as e:
+            logger.error(f"Error in AI analysis: {e}")
+            cleaned_result = {"sentiment_score": 0, "error": str(e)}
+        
+        # Store player data
+        current_time = datetime.now(timezone.utc)
+        player_data = {
+            "player_id": player_id,
+            "player_name": player_name,
+            "last_seen": current_time.isoformat()
+        }
+        
+        # Upsert player data
+        supabase.table('players').upsert(player_data).execute()
+        logger.info("Player data stored/updated in Supabase")
+        
+        # Store message data
+        message_data = {
+            "message_id": message_id,
+            "player_id": player_id,
+            "message": user_message,
+            "sentiment_score": cleaned_result.get("sentiment_score", 0),
+            "created_at": current_time.isoformat()
+        }
+        
+        supabase.table('messages').insert(message_data).execute()
+        logger.info("Message data stored in Supabase")
+        
+        # Update player's total sentiment score
+        try:
+            # Get current total sentiment score
+            player_result = supabase.table('players').select('total_sentiment_score').eq('player_id', player_id).execute()
+            current_total = player_result.data[0].get('total_sentiment_score', 0) if player_result.data else 0
             
-            message_response = supabase.table('messages').insert(message_data).execute()
-            logger.info(f"Message data stored in Supabase")
+            # Add new sentiment score
+            new_total = current_total + cleaned_result.get("sentiment_score", 0)
             
-            # Update player sentiment score after message is stored
-            try:
-                supabase.rpc('update_player_sentiment_score').execute()
-                logger.info("Player sentiment score updated")
-            except Exception as score_error:
-                logger.error(f"Error updating player sentiment score: {score_error}")
+            # Update the total
+            supabase.table('players').update({"total_sentiment_score": new_total}).eq('player_id', player_id).execute()
+            logger.info(f"Updated total sentiment score for player {player_id}: {new_total}")
+        except Exception as e:
+            logger.error(f"Error updating total sentiment score: {e}")
         
-        except Exception as db_error:
-            logger.error(f"Supabase storage error: {db_error}")
+        # Return sentiment result with moderation action immediately
+        try:
+            # Ensure all values are serializable
+            sentiment_score = cleaned_result.get("sentiment_score", 0)
+            if isinstance(sentiment_score, (int, float)):
+                sentiment_score = int(sentiment_score)
+            else:
+                sentiment_score = 0
+                
+            error_msg = cleaned_result.get("error")
+            if error_msg and not isinstance(error_msg, str):
+                error_msg = str(error_msg)
+            
+            # Extract moderation action and reason for immediate response
+            moderation_action = cleaned_result.get("moderation_action")
+            moderation_reason = cleaned_result.get("moderation_reason")
+            
+            # Log moderation action for debugging
+            if moderation_action:
+                logger.info(f"Immediate moderation action for player {player_id}: {moderation_action} - {moderation_reason}")
+            else:
+                logger.info(f"No moderation action for player {player_id}")
+            
+            logger.info(f"Full cleaned result: {cleaned_result}")
+            
+            result = SentimentResponse(
+                player_id=player_id,
+                player_name=player_name,
+                message_id=message_id,
+                message=user_message,
+                sentiment_score=sentiment_score,
+                moderation_action=moderation_action,
+                moderation_reason=moderation_reason,
+                error=error_msg
+            )
+            
+            logger.info(f"Returning sentiment result with moderation: {result}")
+            
+            # Run additional moderation in background (after response is sent)
+            logger.info("Starting background moderation task...")
+            asyncio.create_task(run_background_moderation(chat_message, message_id, player_id, user_message))
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error creating response: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+            # Fallback response without any complex objects
+            fallback_result = SentimentResponse(
+                player_id=player_id,
+                player_name=player_name,
+                message_id=message_id,
+                message=user_message,
+                sentiment_score=0,
+                error=f"Response serialization error: {str(e)}"
+            )
+            
+            logger.info(f"Returning fallback result: {fallback_result}")
+            
+            # Still run moderation in background
+            asyncio.create_task(run_background_moderation(chat_message, message_id, player_id, user_message))
+            
+            return fallback_result
         
-        # Return simple sentiment result for Roblox IMMEDIATELY
-        result = SentimentResponse(
-            player_id=player_id,
-            player_name=player_name,
-            message_id=message_id,
-            message=user_message,
-            sentiment_score=sentiment_score
-        )
-        
-        logger.info(f"Returning sentiment result: {result}")
-        
-        # Run moderation in background (after response is sent)
-        asyncio.create_task(run_background_moderation(chat_message, message_id, player_id, user_message))
-        
-        return result
-    
     except Exception as e:
         logger.error(f"Error in sentiment analysis: {e}")
-        fallback_result = SentimentResponse(
+        return SentimentResponse(
             player_id=player_id,
             player_name=player_name,
             message_id=message_id,
@@ -260,10 +360,6 @@ async def analyze_sentiment_with_background_moderation(
             sentiment_score=0,
             error=str(e)
         )
-        
-        logger.info(f"Returning sentiment fallback result: {fallback_result}")
-        return fallback_result
-
 
 @app.post("/api/moderate", response_model=Dict[str, Any])
 async def moderate_message_endpoint(
@@ -299,13 +395,32 @@ async def get_messages(
     limit: int = Query(100)
 ):
     try:
-        query = supabase.table('messages').select('*').order('created_at', desc=True).limit(limit)
+        query = supabase.table('messages').select('*, players(player_name)').order('created_at', desc=True).limit(limit)
         
         if player_id:
             query = query.eq('player_id', player_id)
         
         response = query.execute()
-        return response.data
+        
+        # Process the response to add player_name to each message
+        processed_messages = []
+        for msg in response.data:
+            # Extract player_name from the joined data
+            player_name = None
+            if msg.get('players') and isinstance(msg['players'], list) and len(msg['players']) > 0:
+                player_name = msg['players'][0].get('player_name')
+            elif msg.get('players') and isinstance(msg['players'], dict):
+                player_name = msg['players'].get('player_name')
+            
+            # Fallback to a default name if player_name is not available
+            if not player_name:
+                player_name = f"Player{msg['player_id']}"
+            
+            # Add player_name to the message
+            msg['player_name'] = player_name
+            processed_messages.append(msg)
+        
+        return processed_messages
     except Exception as e:
         logger.error(f"Error fetching messages: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch messages")
@@ -567,4 +682,406 @@ async def health_check():
         timestamp=datetime.now(timezone.utc).isoformat(),
         services=services
     )
+
+# New Pydantic models for moderation requests
+class ModerationActionRequest(BaseModel):
+    player_id: int
+    action: str  # "warn", "kick", "ban"
+    reason: str
+    game_id: Optional[int] = None
+
+class FlaggedMessageResponse(BaseModel):
+    message_id: str
+    player_id: int
+    player_name: str
+    message: str
+    sentiment_score: int
+    created_at: str
+    moderation_action: Optional[str] = None
+    moderation_reason: Optional[str] = None
+    flag: bool
+
+@app.post("/api/moderate/action")
+async def perform_moderation_action(
+    request_data: ModerationActionRequest,
+    _: None = Depends(verify_api_key)
+):
+    """Perform manual moderation action (warn/kick/ban) on a player"""
+    try:
+        player_id = request_data.player_id
+        action = request_data.action.lower()
+        reason = request_data.reason
+        game_id = request_data.game_id
+        
+        logger.info(f"Performing {action} on player {player_id} for reason: {reason}")
+        
+        # Perform the action via Roblox API
+        if action == "warn":
+            result = await roblox_service.warn_user(player_id, reason, game_id)
+        elif action == "kick":
+            result = await roblox_service.kick_user(player_id, reason, game_id)
+        elif action == "ban":
+            result = await roblox_service.ban_user(player_id, reason, game_id)
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action. Must be 'warn', 'kick', or 'ban'")
+        
+        # Store moderation action in database
+        try:
+            moderation_record = {
+                "player_id": player_id,
+                "action": action,
+                "reason": reason,
+                "performed_by": "manual",  # or "ai" for automated actions
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "success": result.get("success", False),
+                "error": result.get("error")
+            }
+            
+            supabase.table('moderation_actions').insert(moderation_record).execute()
+            logger.info(f"Stored moderation action record for player {player_id}")
+            
+        except Exception as db_error:
+            logger.error(f"Failed to store moderation action in database: {db_error}")
+        
+        return {
+            "success": result.get("success", False),
+            "action": action,
+            "player_id": player_id,
+            "reason": reason,
+            "error": result.get("error"),
+            "roblox_response": result.get("response")
+        }
+        
+    except Exception as e:
+        logger.error(f"Error performing moderation action: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to perform moderation action: {str(e)}")
+
+@app.get("/api/messages/flagged")
+async def get_flagged_messages(limit: int = Query(50)):
+    """Get messages that have been flagged for human review"""
+    try:
+        # Get flagged messages with player information
+        response = supabase.table('messages').select('*, players(player_name)').eq('flag', True).order('created_at', desc=True).limit(limit).execute()
+        
+        flagged_messages = []
+        for msg in response.data:
+            # Extract player_name from the joined data
+            player_name = None
+            if msg.get('players') and isinstance(msg['players'], list) and len(msg['players']) > 0:
+                player_name = msg['players'][0].get('player_name')
+            elif msg.get('players') and isinstance(msg['players'], dict):
+                player_name = msg['players'].get('player_name')
+            
+            # Fallback to a default name if player_name is not available
+            if not player_name:
+                player_name = f"Player{msg['player_id']}"
+            
+            flagged_messages.append(FlaggedMessageResponse(
+                message_id=msg['message_id'],
+                player_id=msg['player_id'],
+                player_name=player_name,
+                message=msg['message'],
+                sentiment_score=msg['sentiment_score'],
+                created_at=msg['created_at'],
+                moderation_action=msg.get('moderation_action'),
+                moderation_reason=msg.get('moderation_reason'),
+                flag=msg.get('flag', False)
+            ))
+        
+        return flagged_messages
+        
+    except Exception as e:
+        logger.error(f"Error fetching flagged messages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch flagged messages")
+
+@app.post("/api/messages/{message_id}/review")
+async def review_flagged_message(
+    message_id: str,
+    action: str = Query(..., description="Action to take: 'approve', 'warn', 'kick', 'ban'"),
+    reason: Optional[str] = Query(None, description="Reason for the action"),
+    _: None = Depends(verify_api_key)
+):
+    """Review a flagged message and take action"""
+    try:
+        # Get the message
+        message_response = supabase.table('messages').select('*').eq('message_id', message_id).execute()
+        
+        if not message_response.data:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        message = message_response.data[0]
+        player_id = message['player_id']
+        
+        # Update message flag status
+        update_data = {"flag": False}
+        
+        if action == "approve":
+            # Just remove the flag
+            pass
+        elif action in ["warn", "kick", "ban"]:
+            # Perform moderation action
+            if not reason:
+                raise HTTPException(status_code=400, detail="Reason required for moderation actions")
+            
+            # Perform the action
+            if action == "warn":
+                result = await roblox_service.warn_user(player_id, reason)
+            elif action == "kick":
+                result = await roblox_service.kick_user(player_id, reason)
+            elif action == "ban":
+                result = await roblox_service.ban_user(player_id, reason)
+            
+            # Update message with action
+            update_data.update({
+                "moderation_action": action,
+                "moderation_reason": reason
+            })
+            
+            # Store moderation action record
+            moderation_record = {
+                "player_id": player_id,
+                "action": action,
+                "reason": reason,
+                "performed_by": "manual_review",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "success": result.get("success", False),
+                "error": result.get("error")
+            }
+            
+            supabase.table('moderation_actions').insert(moderation_record).execute()
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action. Must be 'approve', 'warn', 'kick', or 'ban'")
+        
+        # Update the message
+        supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
+        
+        return {
+            "success": True,
+            "message_id": message_id,
+            "action": action,
+            "reason": reason
+        }
+        
+    except Exception as e:
+        logger.error(f"Error reviewing flagged message: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to review message: {str(e)}")
+
+@app.get("/api/test-roblox")
+async def test_roblox_api(_: None = Depends(verify_roblox_platform_key)):
+    """Test the Roblox API connection to help debug issues."""
+    try:
+        result = await roblox_service.test_api_connection()
+        return {
+            "success": result["success"],
+            "message": result.get("message", "Test completed"),
+            "error": result.get("error"),
+            "universe_id": roblox_service.universe_id,
+            "api_key_configured": bool(roblox_service.api_key)
+        }
+    except Exception as e:
+        logger.error(f"Error testing Roblox API: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "universe_id": roblox_service.universe_id,
+            "api_key_configured": bool(roblox_service.api_key)
+        }
+
+@app.get("/api/moderate/pending")
+async def get_pending_moderation_actions(_: None = Depends(verify_api_key)):
+    """Get pending moderation actions for the Roblox script to process."""
+    try:
+        # Get moderation actions that haven't been applied yet
+        result = supabase.table('moderation_actions').select('*').eq('applied', False).eq('performed_by', 'ai').execute()
+        
+        actions = []
+        for action in result.data:
+            actions.append({
+                "id": action["id"],
+                "player_id": action["player_id"],
+                "player_name": action.get("player_name", f"Player{action['player_id']}"),
+                "action": action["action"],
+                "reason": action["reason"],
+                "created_at": action["created_at"]
+            })
+        
+        return {"actions": actions}
+        
+    except Exception as e:
+        logger.error(f"Error getting pending moderation actions: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get pending actions: {str(e)}")
+
+@app.post("/api/moderate/complete")
+async def complete_moderation_action(
+    action_id: int = Query(..., description="ID of the moderation action to mark as completed"),
+    _: None = Depends(verify_api_key)
+):
+    """Mark a moderation action as completed by the Roblox script."""
+    try:
+        # Update the moderation action to mark it as applied
+        result = supabase.table('moderation_actions').update({"applied": True}).eq('id', action_id).execute()
+        
+        if result.data:
+            return {"success": True, "message": f"Action {action_id} marked as completed"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Action {action_id} not found")
+            
+    except Exception as e:
+        logger.error(f"Error completing moderation action {action_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to complete action: {str(e)}")
+
+@app.post("/api/analyze-with-moderation", response_model=Dict[str, Any])
+async def analyze_with_immediate_moderation(
+    request_data: AnalyzeRequest,
+    _: None = Depends(verify_api_key)
+):
+    """
+    Returns sentiment analysis AND moderation action immediately for Roblox script to handle
+    """
+    user_message = request_data.message
+    message_id = request_data.message_id
+    player_id = request_data.player_id
+    player_name = request_data.player_name
+    
+    # Only use random values if no player_id or player_name was provided
+    if player_id is None:
+        player_id = random.randint(1, 100)
+    if player_name is None:
+        player_name = f"Player{random.randint(1, 999)}"
+    
+    logger.info(f"Processing analysis with moderation: Player ID: {player_id}, Player Name: {player_name}")
+    logger.info(f"Message to analyze: {user_message}")
+    
+    try:
+        # Create chat message for analysis
+        chat_message = ChatMessage(
+            message_id=message_id,
+            content=user_message,
+            user_id=player_id,
+            timestamp=datetime.now(timezone.utc),
+            deleted=False
+        )
+        
+        # Run sentiment analysis
+        sentiment_result = await ai_service.analyze_message_with_moderation(
+            user_message, message_id, player_id, player_name
+        )
+        
+        # Clean the response to remove any datetime objects
+        cleaned_result = clean_ai_response(sentiment_result)
+        logger.info(f"Cleaned AI result: {cleaned_result}")
+        
+        # Store player data
+        current_time = datetime.now(timezone.utc)
+        player_data = {
+            "player_id": player_id,
+            "player_name": player_name,
+            "last_seen": current_time.isoformat()
+        }
+        
+        # Upsert player data
+        supabase.table('players').upsert(player_data).execute()
+        logger.info("Player data stored/updated in Supabase")
+        
+        # Store message data
+        message_data = {
+            "message_id": message_id,
+            "player_id": player_id,
+            "message": user_message,
+            "sentiment_score": cleaned_result.get("sentiment_score", 0),
+            "created_at": current_time.isoformat()
+        }
+        
+        supabase.table('messages').insert(message_data).execute()
+        logger.info("Message data stored in Supabase")
+        
+        # Update player's total sentiment score
+        try:
+            # Get current total sentiment score
+            player_result = supabase.table('players').select('total_sentiment_score').eq('player_id', player_id).execute()
+            current_total = player_result.data[0].get('total_sentiment_score', 0) if player_result.data else 0
+            
+            # Add new sentiment score
+            new_total = current_total + cleaned_result.get("sentiment_score", 0)
+            
+            # Update the total
+            supabase.table('players').update({"total_sentiment_score": new_total}).eq('player_id', player_id).execute()
+            logger.info(f"Updated total sentiment score for player {player_id}: {new_total}")
+        except Exception as e:
+            logger.error(f"Error updating total sentiment score: {e}")
+        
+        # Check for moderation action
+        moderation_action = cleaned_result.get("moderation_action")
+        moderation_reason = cleaned_result.get("moderation_reason")
+        
+        # Determine if this should be an immediate action or flagged for review
+        immediate_action = None
+        should_flag = False
+        
+        if moderation_action:
+            action_lower = moderation_action.lower()
+            
+            # AI AUTO-ACTIONS: Warnings and kicks can be applied immediately
+            if action_lower in ["warning", "kick"]:
+                immediate_action = moderation_action
+                should_flag = False
+                logger.info(f"AI recommends immediate {action_lower} action for player {player_id}")
+                
+            # HUMAN REVIEW: Bans are flagged for human review
+            elif action_lower == "ban":
+                immediate_action = None  # Don't apply immediately
+                should_flag = True
+                logger.info(f"AI recommends BAN for player {player_id} - flagged for human review")
+        
+        # Log moderation action to database
+        if moderation_action:
+            moderation_record = {
+                "player_id": player_id,
+                "player_name": player_name,
+                "message_id": message_id,
+                "action": moderation_action.lower(),
+                "reason": moderation_reason,
+                "performed_by": "ai",
+                "success": immediate_action is not None,  # True if immediate, False if pending review
+                "error": "Pending human review" if should_flag else None
+            }
+            supabase.table('moderation_actions').insert(moderation_record).execute()
+            logger.info(f"Moderation action '{moderation_action}' logged to database.")
+            
+            # Update message with moderation info
+            update_data = {
+                "moderation_action": moderation_action,
+                "moderation_reason": moderation_reason,
+                "flag": should_flag
+            }
+            supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
+        
+        # Return comprehensive result
+        result = {
+            "player_id": player_id,
+            "player_name": player_name,
+            "message_id": message_id,
+            "message": user_message,
+            "sentiment_score": cleaned_result.get("sentiment_score", 0),
+            "moderation_action": immediate_action,  # Only return immediate actions
+            "moderation_reason": moderation_reason if immediate_action else None,
+            "flagged_for_review": should_flag,  # Indicate if ban was flagged
+            "error": cleaned_result.get("error")
+        }
+        
+        logger.info(f"Returning analysis with moderation result: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in analysis with moderation: {e}")
+        return {
+            "player_id": player_id,
+            "player_name": player_name,
+            "message_id": message_id,
+            "message": user_message,
+            "sentiment_score": 0,
+            "moderation_action": None,
+            "moderation_reason": None,
+            "error": str(e)
+        }
 
