@@ -166,30 +166,43 @@ class RobloxAPIClient {
                 params: { userId: userIdString }
             });
 
-            if (response.status === 200 && response.data && typeof response.data.imageUrl === 'string') {
+            if (response.status === 200 && response.data) {
                 const imageUrl = response.data.imageUrl;
-                console.log(`Fetched imageUrl from backend proxy for user ${userIdString}`);
+                
+                // Handle null imageUrl (avatar not found)
+                if (imageUrl === null) {
+                    console.log(`Avatar not found for user ID ${userIdString} (null response from proxy)`);
+                    return null;
+                }
+                
+                if (typeof imageUrl === 'string') {
+                    console.log(`Fetched imageUrl from backend proxy for user ${userIdString}`);
 
-                // Update in-memory cache
-                const newEntry: CacheEntry = {
-                    url: imageUrl,
-                    timestamp: Date.now()
-                };
-                this.avatarCache.set(userIdString, newEntry);
+                    // Update in-memory cache
+                    const newEntry: CacheEntry = {
+                        url: imageUrl,
+                        timestamp: Date.now()
+                    };
+                    this.avatarCache.set(userIdString, newEntry);
 
-                // Save updated cache to localStorage (will check for browser env inside)
-                this.saveCacheToStorage();
+                    // Save updated cache to localStorage (will check for browser env inside)
+                    this.saveCacheToStorage();
 
-                return imageUrl;
+                    return imageUrl;
+                } else {
+                    console.warn(`Unexpected successful response structure from backend proxy for user ${userIdString}:`, response.data);
+                    return null;
+                }
             } else {
-                console.warn(`Unexpected successful response structure from backend proxy for user ${userIdString}:`, response.data);
+                console.warn(`Unexpected response status from backend proxy for user ${userIdString}:`, response.status);
                 return null;
             }
         } catch (error: any) {
             // Log specific errors based on response status if available
             if (error.response) {
                 if (error.response.status === 404) {
-                    console.log(`Avatar not found for user ID ${userIdString} (404 from proxy: ${error.response.data?.error || 'Not Found'}).`);
+                    // Don't log 404 errors as they're expected for invalid/fake user IDs
+                    // console.log(`Avatar not found for user ID ${userIdString} (404 from proxy: ${error.response.data?.error || 'Not Found'}).`);
                 } else {
                     console.error(`Error fetching avatar from proxy for user ID ${userIdString} - Status ${error.response.status}:`,
                         error.response.data?.error || error.message);

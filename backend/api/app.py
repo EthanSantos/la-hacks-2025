@@ -467,7 +467,13 @@ async def get_roblox_avatar(userId: Optional[str] = Query(None)):
     try:
         # Make the request to the actual Roblox Thumbnails API
         roblox_response = requests.get(ROBLOX_THUMBNAILS_API_URL, params=roblox_params)
-        roblox_response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+        
+        # Handle 404 gracefully - return empty response instead of error
+        if roblox_response.status_code == 404:
+            logger.info(f"Roblox avatar proxy: Avatar not found for user ID: {userId} (404 from Roblox API)")
+            return {"imageUrl": None}
+        
+        roblox_response.raise_for_status()  # Raise an HTTPError for other bad responses (5xx)
 
         roblox_data = roblox_response.json()
         logger.info(f"Roblox avatar proxy: Received data from Roblox API: {roblox_data}")
@@ -488,26 +494,30 @@ async def get_roblox_avatar(userId: Optional[str] = Query(None)):
             # Return the image URL to the frontend
             return {"imageUrl": image_url}
         else:
-            # Return a 404 if the image URL was not found for the user
-            logger.info(f"Roblox avatar proxy: Avatar not found for user ID: {userId}")
-            raise HTTPException(status_code=404, detail="Avatar not found")
+            # Return null imageUrl instead of 404 error
+            logger.info(f"Roblox avatar proxy: No avatar found for user ID: {userId}")
+            return {"imageUrl": None}
 
     except requests.exceptions.RequestException as e:
         # Handle errors during the request to Roblox API
         logger.error(f"Roblox avatar proxy: Error fetching from Roblox API: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch avatar from Roblox")
-    except HTTPException:
-        # Re-raise HTTPExceptions
-        raise
+        # Return null instead of 500 error
+        return {"imageUrl": None}
     except Exception as e:
         # Handle any other unexpected errors
         logger.error(f"Roblox avatar proxy: An unexpected error occurred: {e}")
-        raise HTTPException(status_code=500, detail="An internal error occurred")
+        # Return null instead of 500 error
+        return {"imageUrl": None}
 
 @app.get("/api/top-players")
 async def get_top_players(limit: int = Query(10)):
     try:
+        logger.info(f"Fetching top players with limit: {limit}")
+        
         response = supabase.rpc('get_top_players_by_sentiment', {'p_limit': limit}).execute()
+        
+        logger.info(f"Supabase RPC response: {response}")
+        logger.info(f"Response data: {response.data}")
         
         # Format the response to ensure we have the required fields
         formatted_data = []
@@ -519,6 +529,7 @@ async def get_top_players(limit: int = Query(10)):
                 "message_count": player["message_count"]
             })
         
+        logger.info(f"Formatted data: {formatted_data}")
         return formatted_data
     except Exception as e:
         logger.error(f"Error fetching top players: {e}")
@@ -1084,4 +1095,26 @@ async def analyze_with_immediate_moderation(
             "moderation_reason": None,
             "error": str(e)
         }
+
+@app.get("/api/debug-data")
+async def debug_database_data():
+    """Temporary endpoint to debug database data"""
+    try:
+        # Check players table
+        players_response = supabase.table('players').select('*').limit(5).execute()
+        logger.info(f"Players data: {players_response.data}")
+        
+        # Check messages table
+        messages_response = supabase.table('messages').select('*').limit(5).execute()
+        logger.info(f"Messages data: {messages_response.data}")
+        
+        return {
+            "players_count": len(players_response.data),
+            "messages_count": len(messages_response.data),
+            "sample_players": players_response.data,
+            "sample_messages": messages_response.data
+        }
+    except Exception as e:
+        logger.error(f"Debug data error: {e}")
+        return {"error": str(e)}
 
