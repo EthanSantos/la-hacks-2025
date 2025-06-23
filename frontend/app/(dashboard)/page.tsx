@@ -15,7 +15,7 @@ export default function Page() {
           Welcome back, Bloom Admin!
         </h1>
         <p className="text-muted-foreground">
-          Here's an overview of your community's health
+          Here&apos;s an overview of your community&apos;s health
         </p>
       </div>
 

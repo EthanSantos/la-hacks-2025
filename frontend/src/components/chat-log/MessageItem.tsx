@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { useAvatarHeadshot } from '@/hooks/useAvatarHeadshot';
 import { Message } from '@/types/sentiment';
 import PlayerDetailsDialog from '@/components/chat-log/PlayerDetailsDialog';
@@ -86,7 +87,7 @@ export default function MessageItem({ msg }: MessageItemProps) {
             initials: getInitials(msg.player_name),
             color: "bg-blue-500"
         };
-    }, [msg.player_id, msg.player_name]);
+    }, [msg.player_name]);
 
     // Handle image load error
     const handleImageError = () => {
@@ -125,9 +126,11 @@ export default function MessageItem({ msg }: MessageItemProps) {
                         {loading ? (
                             <div className="w-9 h-9 rounded-full bg-gray-200 animate-pulse" />
                         ) : showAvatar ? (
-                            <img
+                            <Image
                                 src={avatarUrl}
                                 alt={`${msg.player_name}'s avatar`}
+                                width={36}
+                                height={36}
                                 className="w-9 h-9 rounded-full object-cover border border-gray-300"
                                 onError={handleImageError}
                             />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import ChatLog from '@/components/chat-log/Chat';
 import SentimentAnalyzer from "@/components/sentiment-analyzer/SentimentAnalyzer";
 import { useLiveMessages } from '@/hooks/useLiveMessages';
@@ -50,7 +50,7 @@ export default function ModerationPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch stats function
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const [messagesResponse, playersResponse] = await Promise.all([
         supabase.from('messages').select('*', { count: 'exact', head: true }),
@@ -82,14 +82,14 @@ export default function ModerationPage() {
       console.error('Error fetching stats:', error);
       setIsLoading(false);
     }
-  };
+  }, [messages]);
 
   useEffect(() => {
     if (!messages || messages.length === 0) {
       fetchMessages(true);
     }
     fetchStats();
-  }, [fetchMessages]);
+  }, [fetchMessages, fetchStats]);
 
   useEffect(() => {
     if (messages && messages.length > 0 && !isLoading) {
@@ -122,7 +122,7 @@ export default function ModerationPage() {
       supabase.removeChannel(messagesSubscription);
       supabase.removeChannel(playersSubscription);
     };
-  }, []);
+  }, [fetchStats]);
 
   const formatSentiment = (value: number) => {
     return value.toFixed(2);

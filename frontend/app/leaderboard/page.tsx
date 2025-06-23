@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Trophy, MessageSquare, TrendingUp, BarChart2, RefreshCcw } from "lucide-react"
@@ -18,7 +18,7 @@ export default function LeaderboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
 
   // Use the same approach as the working old leaderboard
-  const fetchTopPlayers = async () => {
+  const fetchTopPlayers = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -31,7 +31,7 @@ export default function LeaderboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [limit])
 
   useEffect(() => {
     fetchTopPlayers()
@@ -39,7 +39,7 @@ export default function LeaderboardPage() {
     const intervalId = setInterval(fetchTopPlayers, 60000) // Refresh every minute
     
     return () => clearInterval(intervalId)
-  }, [limit])
+  }, [fetchTopPlayers])
 
   // Calculate statistics from real API data
   const totalMessages = topPlayers.reduce((sum, player) => sum + player.message_count, 0)
