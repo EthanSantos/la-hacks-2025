@@ -283,4 +283,21 @@ export const moderationApi = {
 
     return response.json();
   },
+
+  async getReviewedMessages(limit: number = 50): Promise<Message[]> {
+    const response = await fetch(`${API_BASE_URL}/api/messages?limit=${limit}`, {
+      headers: {
+        'X-API-Key': API_KEY || '',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch messages: ${response.statusText}`);
+    }
+
+    const messages = await response.json();
+    
+    // Filter to only return messages that have been moderated (have moderation_action)
+    return messages.filter((msg: Message) => msg.moderation_action);
+  },
 };

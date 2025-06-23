@@ -58,11 +58,23 @@ const data = {
       title: "Moderation",
       url: "/moderation",
       icon: IconListDetails,
-    },
-    {
-      title: "Flagged Messages",
-      url: "/flagged",
-      icon: IconAlertTriangle,
+      items: [
+        {
+          title: "Live Chat",
+          url: "/moderation",
+          icon: IconMessage,
+        },
+        {
+          title: "Queue",
+          url: "/moderation/queue",
+          icon: IconStack2,
+        },
+        {
+          title: "History",
+          url: "/moderation/history",
+          icon: IconHistory,
+        },
+      ],
     },
     {
       title: "Analytics",
