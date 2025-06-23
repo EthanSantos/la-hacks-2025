@@ -299,7 +299,6 @@ async def analyze_sentiment_with_background_moderation(
             try:
                 moderation_record = {
                     "player_id": player_id,
-                    "player_name": player_name,
                     "message_id": message_id,
                     "action": moderation_action.lower(),
                     "reason": moderation_reason,
@@ -938,7 +937,6 @@ async def get_pending_moderation_actions(_: None = Depends(verify_api_key)):
             actions.append({
                 "id": action["id"],
                 "player_id": action["player_id"],
-                "player_name": action.get("player_name", f"Player{action['player_id']}"),
                 "action": action["action"],
                 "reason": action["reason"],
                 "created_at": action["created_at"]
@@ -1076,7 +1074,6 @@ async def analyze_with_immediate_moderation(
         if moderation_action:
             moderation_record = {
                 "player_id": player_id,
-                "player_name": player_name,
                 "message_id": message_id,
                 "action": moderation_action.lower(),
                 "reason": moderation_reason,
