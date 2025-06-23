@@ -284,6 +284,46 @@ async def analyze_sentiment_with_background_moderation(
         except Exception as e:
             logger.error(f"Error updating total sentiment score: {e}")
         
+        # Extract moderation action and reason for immediate response
+        moderation_action = cleaned_result.get("moderation_action")
+        moderation_reason = cleaned_result.get("moderation_reason")
+        
+        # Log moderation action for debugging
+        if moderation_action:
+            logger.info(f"Immediate moderation action for player {player_id}: {moderation_action} - {moderation_reason}")
+        else:
+            logger.info(f"No moderation action for player {player_id}")
+        
+        # Record moderation action in database if present
+        if moderation_action:
+            try:
+                moderation_record = {
+                    "player_id": player_id,
+                    "player_name": player_name,
+                    "message_id": message_id,
+                    "action": moderation_action.lower(),
+                    "reason": moderation_reason,
+                    "performed_by": "ai",
+                    "success": True,  # Action was determined by AI
+                    "error": None
+                }
+                supabase.table('moderation_actions').insert(moderation_record).execute()
+                logger.info(f"Moderation action '{moderation_action}' logged to moderation_actions table.")
+                
+                # Update message with moderation info
+                update_data = {
+                    "moderation_action": moderation_action,
+                    "moderation_reason": moderation_reason,
+                    "flag": moderation_action.lower() == "ban"  # Flag bans for human review
+                }
+                supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
+                logger.info(f"Message {message_id} updated with moderation action.")
+                
+            except Exception as db_error:
+                logger.error(f"Failed to record moderation action in database: {db_error}")
+        
+        logger.info(f"Full cleaned result: {cleaned_result}")
+        
         # Return sentiment result with moderation action immediately
         try:
             # Ensure all values are serializable
@@ -296,18 +336,6 @@ async def analyze_sentiment_with_background_moderation(
             error_msg = cleaned_result.get("error")
             if error_msg and not isinstance(error_msg, str):
                 error_msg = str(error_msg)
-            
-            # Extract moderation action and reason for immediate response
-            moderation_action = cleaned_result.get("moderation_action")
-            moderation_reason = cleaned_result.get("moderation_reason")
-            
-            # Log moderation action for debugging
-            if moderation_action:
-                logger.info(f"Immediate moderation action for player {player_id}: {moderation_action} - {moderation_reason}")
-            else:
-                logger.info(f"No moderation action for player {player_id}")
-            
-            logger.info(f"Full cleaned result: {cleaned_result}")
             
             result = SentimentResponse(
                 player_id=player_id,

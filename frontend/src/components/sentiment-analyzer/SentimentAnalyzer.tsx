@@ -67,9 +67,9 @@ export default function SentimentAnalyzer() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="flex flex-col px-4 lg:px-6 space-y-3 lg:space-y-4 flex-1 min-h-0">
+        <CardContent className="flex flex-col px-4 lg:px-6 pb-6 space-y-3 lg:space-y-4">
           <Textarea
-            className="min-h-[80px] lg:min-h-[100px] resize-none flex-1 focus-visible:ring-primary text-sm"
+            className="min-h-[80px] lg:min-h-[70px] resize-none focus-visible:ring-primary text-sm"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Enter your message to analyze..."
@@ -80,12 +80,10 @@ export default function SentimentAnalyzer() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-        </CardContent>
 
-        <CardFooter className="flex-shrink-0 pt-0 px-4 lg:px-6 pb-4 lg:pb-6">
           <Button
             onClick={handleAnalyze}
-            className="w-full text-sm"
+            className="w-full text-sm mt-2"
             disabled={isLoading || !message.trim()}
           >
             {isLoading ? (
@@ -100,7 +98,7 @@ export default function SentimentAnalyzer() {
               </span>
             )}
           </Button>
-        </CardFooter>
+        </CardContent>
       </Card>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

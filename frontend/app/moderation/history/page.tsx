@@ -246,6 +246,7 @@ export default function ModerationHistoryPage() {
         ) : (
           <div className="space-y-4">
             {filteredItems.map((item) => (
+              console.log(item),
               <Card key={item.message_id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -256,7 +257,7 @@ export default function ModerationHistoryPage() {
                           {item.moderation_action?.toUpperCase()}
                         </div>
                       </Badge>
-                      <span className="text-sm text-muted-foreground">by {item.player_name}</span>
+                      <span className="text-sm text-muted-foreground">by AI</span>
                       <span className="text-sm text-muted-foreground">•</span>
                       <span className="text-sm text-muted-foreground">{formatDate(item.created_at)}</span>
                     </div>
