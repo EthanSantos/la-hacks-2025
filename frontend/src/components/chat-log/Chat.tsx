@@ -91,7 +91,7 @@ export default function ChatLog({ title = "Live Chat Log" }) {
                     <div className="relative flex-grow">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                       <Input
-                        placeholder="Search by player, ID, or text..."
+                        placeholder="Search messages or players..."
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="h-9 pl-9 w-full text-sm"
