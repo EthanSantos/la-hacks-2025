@@ -841,25 +841,34 @@ async def review_flagged_message(
 ):
     """Review a flagged message and take action"""
     try:
+        logger.info(f"Review request received: message_id={message_id}, action={action}, reason={reason}")
+        
         # Get the message
         message_response = supabase.table('messages').select('*').eq('message_id', message_id).execute()
         
         if not message_response.data:
+            logger.error(f"Message not found: {message_id}")
             raise HTTPException(status_code=404, detail="Message not found")
         
         message = message_response.data[0]
         player_id = message['player_id']
+        logger.info(f"Found message: player_id={player_id}, current_flag={message.get('flag', 'not_set')}")
         
         # Update message flag status
         update_data = {"flag": False}
+        logger.info(f"Setting flag to False for message {message_id}")
         
         if action == "approve":
             # Just remove the flag
+            logger.info(f"Approving message {message_id} - just removing flag")
             pass
         elif action in ["warn", "kick", "ban"]:
             # Perform moderation action
             if not reason:
+                logger.error(f"Reason required for action {action}")
                 raise HTTPException(status_code=400, detail="Reason required for moderation actions")
+            
+            logger.info(f"Performing {action} action on player {player_id}")
             
             # Perform the action
             if action == "warn":
@@ -887,11 +896,15 @@ async def review_flagged_message(
             }
             
             supabase.table('moderation_actions').insert(moderation_record).execute()
+            logger.info(f"Stored moderation action record for {action}")
         else:
+            logger.error(f"Invalid action: {action}")
             raise HTTPException(status_code=400, detail="Invalid action. Must be 'approve', 'warn', 'kick', or 'ban'")
         
         # Update the message
-        supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
+        logger.info(f"Updating message {message_id} with data: {update_data}")
+        update_result = supabase.table('messages').update(update_data).eq('message_id', message_id).execute()
+        logger.info(f"Update result: {update_result}")
         
         return {
             "success": True,
@@ -902,6 +915,8 @@ async def review_flagged_message(
         
     except Exception as e:
         logger.error(f"Error reviewing flagged message: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Failed to review message: {str(e)}")
 
 @app.get("/api/test-roblox")

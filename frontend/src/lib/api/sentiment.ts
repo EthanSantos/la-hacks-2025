@@ -270,18 +270,29 @@ export const moderationApi = {
       params.append('reason', request.reason);
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/messages/${messageId}/review?${params}`, {
+    const url = `${API_BASE_URL}/api/messages/${messageId}/review?${params}`;
+    console.log('🌐 Calling API URL:', url);
+    console.log('📤 Request data:', request);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'X-API-Key': API_KEY || '',
       },
     });
 
+    console.log('📥 Response status:', response.status);
+    console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      throw new Error(`Failed to review message: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ API Error Response:', errorText);
+      throw new Error(`Failed to review message: ${response.statusText} - ${errorText}`);
     }
 
-    return response.json();
+    const result = await response.json();
+    console.log('✅ API Success Response:', result);
+    return result;
   },
 
   async getReviewedMessages(limit: number = 50): Promise<Message[]> {
