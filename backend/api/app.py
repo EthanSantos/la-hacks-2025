@@ -79,7 +79,7 @@ async def log_requests(request: Request, call_next):
 
 # API Keys
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
-ROBLOX_API_KEY = os.environ.get("ROBLOX_API_KEY")
+BLOOM_API_KEY = os.environ.get("BLOOM_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
@@ -100,7 +100,7 @@ ROBLOX_THUMBNAILS_API_URL = "https://thumbnails.roblox.com/v1/users/avatar-heads
 
 logger.info("Server starting up with configuration...")
 logger.info(f"Google API Key configured: {'Yes' if GOOGLE_API_KEY else 'No'}")
-logger.info(f"Roblox API Key configured: {'Yes' if ROBLOX_API_KEY else 'No'}")
+logger.info(f"Roblox API Key configured: {'Yes' if BLOOM_API_KEY else 'No'}")
 logger.info(f"Supabase configured: {'Yes' if SUPABASE_URL and SUPABASE_KEY else 'No'}")
 logger.info("Gemini model initialized")
 
@@ -188,10 +188,10 @@ async def run_background_moderation(chat_message: ChatMessage, message_id: str, 
 
 # Dependency for API key validation
 async def verify_api_key(request: Request):
-    if ROBLOX_API_KEY:
+    if BLOOM_API_KEY:
         api_key = request.headers.get('X-API-Key')
-        logger.info(f"API Key authentication: {'Success' if api_key == ROBLOX_API_KEY else 'Failed'}")
-        if not api_key or api_key != ROBLOX_API_KEY:
+        logger.info(f"API Key authentication: {'Success' if api_key == BLOOM_API_KEY else 'Failed'}")
+        if not api_key or api_key != BLOOM_API_KEY:
             logger.info("Unauthorized access attempt - invalid API key")
             raise HTTPException(status_code=401, detail="Unauthorized")
 
@@ -773,9 +773,9 @@ def check_ai_model() -> ServiceStatus:
             details={"error": str(e)}
         )
 
-def check_roblox_api() -> ServiceStatus:
+def check_bloom_api() -> ServiceStatus:
     """Check if Roblox API key is configured"""
-    if not ROBLOX_API_KEY:
+    if not BLOOM_API_KEY:
         return ServiceStatus(status="not_configured")
     return ServiceStatus(status="healthy")
 
@@ -791,7 +791,7 @@ async def health_check():
     services = {
         "database": check_supabase_connection(),
         "ai_model": check_ai_model(),
-        "roblox_api": check_roblox_api()
+        "roblox_api": check_bloom_api()
     }
     
     # Determine overall status
