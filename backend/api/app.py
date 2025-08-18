@@ -15,6 +15,9 @@ import requests
 import logging
 from dotenv import load_dotenv
 import asyncio
+import time
+import threading
+from collections import defaultdict
 
 # Helper function to clean AI service response
 def clean_ai_response(response):
@@ -60,6 +63,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Request timing/logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        duration = time.time() - start_time
+        logger.info(
+            f"{request.method} {request.url.path} -> {getattr(response, 'status_code', 'NA')} in {duration:.3f}s"
+        )
 
 # API Keys
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
@@ -179,6 +195,27 @@ async def verify_api_key(request: Request):
             logger.info("Unauthorized access attempt - invalid API key")
             raise HTTPException(status_code=401, detail="Unauthorized")
 
+# Simple in-memory per-key rate limiter (200 req/min default)
+class SimpleRateLimiter:
+    def __init__(self):
+        self.requests = defaultdict(list)
+        self.lock = threading.Lock()
+
+    def allow(self, key: str, limit: int = 200, window_seconds: int = 60) -> bool:
+        if not key:
+            return False
+        now = time.time()
+        with self.lock:
+            window_start = now - window_seconds
+            recent = [t for t in self.requests[key] if t >= window_start]
+            self.requests[key] = recent
+            if len(recent) >= limit:
+                return False
+            self.requests[key].append(now)
+            return True
+
+rate_limiter = SimpleRateLimiter()
+
 # Dependency for Roblox Platform API key validation
 async def verify_roblox_platform_key(request: Request):
     roblox_platform_key = os.environ.get("ROBLOX_PLATFORM_API_KEY")
@@ -202,11 +239,17 @@ async def home():
 @app.post("/api/analyze", response_model=SentimentResponse)
 async def analyze_sentiment_with_background_moderation(
     request_data: AnalyzeRequest,
+    request: Request,
     _: None = Depends(verify_api_key)
 ):
     """
     Returns sentiment analysis immediately with moderation action, runs additional moderation in background
     """
+    # Rate limiting per API key
+    api_key = request.headers.get('X-API-Key')
+    if not rate_limiter.allow(api_key, limit=200, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again shortly.")
+
     user_message = request_data.message
     message_id = request_data.message_id
     player_id = request_data.player_id
@@ -222,31 +265,77 @@ async def analyze_sentiment_with_background_moderation(
     logger.info(f"Message to analyze: {user_message}")
     
     try:
+        # Smart sampling decision
+        sampling_rate = 0.1  # 10% of normal messages
+        must_process = False
+        if player_id is not None and supabase:
+            try:
+                # Treat players with any prior moderation action as high-risk -> always analyze
+                prior = supabase.table('moderation_actions').select('id').eq('player_id', player_id).limit(1).execute()
+                must_process = bool(prior.data)
+            except Exception as _e:
+                must_process = False
+
+        process_with_ai = must_process or (random.random() < sampling_rate)
+
+        current_time = datetime.now(timezone.utc)
+
+        if not process_with_ai:
+            # Store lightweight record without invoking AI
+            try:
+                if supabase:
+                    player_data = {
+                        "player_id": player_id,
+                        "player_name": player_name,
+                        "last_seen": current_time.isoformat()
+                    }
+                    supabase.table('players').upsert(player_data).execute()
+
+                    message_data = {
+                        "message_id": message_id,
+                        "player_id": player_id,
+                        "message": user_message,
+                        "sentiment_score": 0,
+                        "created_at": current_time.isoformat()
+                    }
+                    supabase.table('messages').insert(message_data).execute()
+            except Exception as e:
+                logger.error(f"Failed to store sampled message {message_id}: {e}")
+
+            logger.info(f"Message {message_id} sampled (rate={sampling_rate}, must_process={must_process})")
+            return SentimentResponse(
+                player_id=player_id,
+                player_name=player_name,
+                message_id=message_id,
+                message=user_message,
+                sentiment_score=0,
+                moderation_action=None,
+                moderation_reason=None,
+                error="sampled"
+            )
+
         # Create chat message for analysis
         chat_message = ChatMessage(
             message_id=message_id,
             content=user_message,
             user_id=player_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=current_time,
             deleted=False
         )
-        
+
         # Run sentiment analysis with moderation
         try:
             sentiment_result = await ai_service.analyze_message_with_moderation(
                 user_message, message_id, player_id, player_name
             )
-            
-            # Clean the response to remove any datetime objects
+            # Clean the response to remove any non-serializable objects
             cleaned_result = clean_ai_response(sentiment_result)
             logger.info(f"Cleaned AI result: {cleaned_result}")
-            
         except Exception as e:
             logger.error(f"Error in AI analysis: {e}")
             cleaned_result = {"sentiment_score": 0, "error": str(e)}
         
         # Store player data
-        current_time = datetime.now(timezone.utc)
         player_data = {
             "player_id": player_id,
             "player_name": player_name,
